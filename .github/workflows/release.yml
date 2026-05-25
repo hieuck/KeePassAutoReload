@@ -35,7 +35,12 @@ jobs:
           New-Item -ItemType Directory -Path $keepassDir -Force | Out-Null
           $zipPath = Join-Path $env:RUNNER_TEMP "KeePass.zip"
 
-          curl.exe -L -o $zipPath "https://sourceforge.net/projects/keepass/files/KeePass%202.x/2.61/KeePass-2.61.1.zip/download"
+          curl.exe -L -o $zipPath "https://sourceforge.net/projects/keepass/files/KeePass%202.x/2.61.1/KeePass-2.61.1.zip/download"
+          $header = [System.IO.File]::ReadAllBytes($zipPath)[0..1]
+          if (($header[0] -ne 0x50) -or ($header[1] -ne 0x4B)) {
+            throw "KeePass download did not return a zip file."
+          }
+
           Expand-Archive -Path $zipPath -DestinationPath $keepassDir -Force
 
           if (!(Test-Path (Join-Path $keepassDir "KeePass.exe"))) {
