@@ -1,0 +1,4 @@
+C:\Users\Admin\OneDrive\Downloads\Program Files\KeePass\Plugins\KeePassAutoReload\tests\obj\Debug\net8.0\KeePassAutoReload.Tests.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Admin\OneDrive\Downloads\Program Files\KeePass\Plugins\KeePassAutoReload\tests\obj\Debug\net8.0\KeePassAutoReload.Tests.AssemblyInfoInputs.cache
+C:\Users\Admin\OneDrive\Downloads\Program Files\KeePass\Plugins\KeePassAutoReload\tests\obj\Debug\net8.0\KeePassAutoReload.Tests.AssemblyInfo.cs
+C:\Users\Admin\OneDrive\Downloads\Program Files\KeePass\Plugins\KeePassAutoReload\tests\obj\Debug\net8.0\KeePassAutoReload.Tests.csproj.CoreCompileInputs.cache
