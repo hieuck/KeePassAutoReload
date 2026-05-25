@@ -1,0 +1,90 @@
+name: Build and Release KeePass AutoReload
+
+on:
+  push:
+    branches: ["*"]
+    tags:
+      - "v*"
+  pull_request:
+    branches: ["*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Download KeePass
+        shell: powershell
+        run: |
+          $keepassDir = Join-Path $env:RUNNER_TEMP "KeePass"
+          New-Item -ItemType Directory -Path $keepassDir -Force | Out-Null
+          $zipPath = Join-Path $env:RUNNER_TEMP "KeePass.zip"
+
+          curl.exe -L -o $zipPath "https://sourceforge.net/projects/keepass/files/KeePass%202.x/2.61/KeePass-2.61.1.zip/download"
+          Expand-Archive -Path $zipPath -DestinationPath $keepassDir -Force
+
+          if (!(Test-Path (Join-Path $keepassDir "KeePass.exe"))) {
+            throw "KeePass.exe was not extracted."
+          }
+
+          "KEEPASS_DIR=$keepassDir" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Run tests
+        shell: powershell
+        run: dotnet run --project tests/KeePassAutoReload.Tests.csproj
+
+      - name: Build plugin DLL
+        shell: powershell
+        run: |
+          msbuild src/KeePassAutoReload.csproj `
+            /p:Configuration=Release `
+            /p:Platform="AnyCPU" `
+            /p:KeePassReferencePath="$env:KEEPASS_DIR"
+
+      - name: Prepare release assets
+        shell: powershell
+        run: |
+          $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
+          New-Item -ItemType Directory -Path $dist -Force | Out-Null
+
+          Copy-Item "bin/Release/KeePassAutoReload.dll" "$dist/KeePassAutoReload.dll" -Force
+          Copy-Item "README.md" "$dist/README.md" -Force
+
+          Compress-Archive -Path "$dist/KeePassAutoReload.dll", "$dist/README.md" `
+            -DestinationPath "$dist/KeePassAutoReload.zip" -Force
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KeePassAutoReload
+          path: |
+            dist/KeePassAutoReload.dll
+            dist/KeePassAutoReload.zip
+
+      - name: Publish GitHub release
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Latest Build' }}
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: |
+            dist/KeePassAutoReload.dll
+            dist/KeePassAutoReload.zip
