@@ -15,3 +15,5 @@ This is intended for setups where KeePass opens a remote database through a prov
 The plugin also provides **Synchronize Now** for a manual sync.
 
 By default, automatic sync is skipped when the active KeePass database has unsaved local changes. Use **Sync Even When Modified** only if you accept KeePass running a merge while the local database is dirty.
+
+Use **Tools -> KeePass Auto Reload -> Check for Updates** to download the latest GitHub release. If a newer DLL is available, the plugin stages it and installs it after KeePass exits.

@@ -26,6 +26,8 @@
   <ItemGroup>
     <Compile Include="AutoSyncPolicy.cs" />
     <Compile Include="KeePassAutoReloadExt.cs" />
+    <Compile Include="PluginAboutInfo.cs" />
+    <Compile Include="PluginUpdateInfo.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

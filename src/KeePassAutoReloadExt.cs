@@ -1,4 +1,8 @@
 using System;
+using System.Diagnostics;
+using System.IO;
+using System.Net;
+using System.Reflection;
 using System.Windows.Forms;
 using KeePass.DataExchange;
 using KeePass.Plugins;
@@ -61,6 +65,16 @@ namespace KeePassAutoReload
             AddIntervalItems(m_intervalItem);
             UpdateIntervalText();
 
+            root.DropDownItems.Add(new ToolStripSeparator());
+
+            ToolStripMenuItem updateItem = new ToolStripMenuItem("Check for Updates");
+            updateItem.Click += OnCheckForUpdates;
+            root.DropDownItems.Add(updateItem);
+
+            ToolStripMenuItem aboutItem = new ToolStripMenuItem("About " + ProductName);
+            aboutItem.Click += OnAbout;
+            root.DropDownItems.Add(aboutItem);
+
             return root;
         }
 
@@ -72,6 +86,92 @@ namespace KeePassAutoReload
         private void OnTimerTick(object sender, EventArgs e)
         {
             Synchronize(GetSkipModified(), false);
+        }
+
+        private void OnAbout(object sender, EventArgs e)
+        {
+            Assembly assembly = Assembly.GetExecutingAssembly();
+            string version = FileVersionInfo.GetVersionInfo(assembly.Location).FileVersion;
+            string message = PluginAboutInfo.BuildText(version, GetIntervalSeconds(), GetSkipModified());
+            MessageBox.Show(message, ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void OnCheckForUpdates(object sender, EventArgs e)
+        {
+            try
+            {
+                Assembly assembly = Assembly.GetExecutingAssembly();
+                string currentPath = assembly.Location;
+                string currentVersion = GetFileVersion(currentPath);
+                string tempPath = Path.Combine(Path.GetTempPath(),
+                    "KeePassAutoReload-" + Guid.NewGuid().ToString("N") + ".dll");
+
+                using (WebClient client = new WebClient())
+                {
+                    client.Headers.Add("User-Agent", "KeePassAutoReload");
+                    client.DownloadFile(PluginUpdateInfo.LatestDllUrl, tempPath);
+                }
+
+                string remoteVersion = GetFileVersion(tempPath);
+                if (!PluginUpdateInfo.IsRemoteNewer(currentVersion, remoteVersion))
+                {
+                    File.Delete(tempPath);
+                    MessageBox.Show("You are already using the latest version.\r\n\r\nVersion: " + currentVersion,
+                        ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                DialogResult answer = MessageBox.Show(
+                    "A newer version is available.\r\n\r\nCurrent version: " + currentVersion +
+                    "\r\nNew version: " + remoteVersion + "\r\n\r\nDownload and install after KeePass closes?",
+                    ProductName, MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+                if (answer != DialogResult.Yes)
+                {
+                    File.Delete(tempPath);
+                    return;
+                }
+
+                StageUpdate(tempPath, currentPath, Process.GetCurrentProcess().Id);
+                MessageBox.Show(PluginUpdateInfo.BuildStagedUpdateMessage(currentVersion, remoteVersion),
+                    ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Update check failed:\r\n" + ex.Message,
+                    ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private static string GetFileVersion(string path)
+        {
+            string version = FileVersionInfo.GetVersionInfo(path).FileVersion;
+            return string.IsNullOrEmpty(version) ? "0.0.0.0" : version;
+        }
+
+        private static void StageUpdate(string sourcePath, string targetPath, int processId)
+        {
+            string scriptPath = Path.Combine(Path.GetTempPath(),
+                "KeePassAutoReloadUpdate-" + Guid.NewGuid().ToString("N") + ".cmd");
+            string script = "@echo off\r\n" +
+                "setlocal\r\n" +
+                ":wait\r\n" +
+                "tasklist /FI \"PID eq " + processId + "\" | find \"" + processId + "\" >nul\r\n" +
+                "if not errorlevel 1 (\r\n" +
+                "  timeout /t 1 /nobreak >nul\r\n" +
+                "  goto wait\r\n" +
+                ")\r\n" +
+                "copy /Y \"" + sourcePath + "\" \"" + targetPath + "\" >nul\r\n" +
+                "del \"" + sourcePath + "\" >nul 2>nul\r\n" +
+                "del \"%~f0\" >nul 2>nul\r\n";
+
+            File.WriteAllText(scriptPath, script);
+
+            ProcessStartInfo startInfo = new ProcessStartInfo();
+            startInfo.FileName = scriptPath;
+            startInfo.CreateNoWindow = true;
+            startInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            Process.Start(startInfo);
         }
 
         private void Synchronize(bool skipWhenModified, bool showResult)
