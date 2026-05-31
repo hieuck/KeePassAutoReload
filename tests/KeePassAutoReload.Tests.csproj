@@ -8,6 +8,6 @@
   <ItemGroup>
     <Compile Include="..\src\AutoSyncPolicy.cs" Link="AutoSyncPolicy.cs" />
     <Compile Include="..\src\PluginAboutInfo.cs" Link="PluginAboutInfo.cs" />
-    <Compile Include="..\src\PluginUpdateInfo.cs" Link="PluginUpdateInfo.cs" />
+    <Compile Include="..\src\UpdateChecker.cs" Link="UpdateChecker.cs" />
   </ItemGroup>
 </Project>

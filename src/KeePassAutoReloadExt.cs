@@ -1,8 +1,7 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Net;
-using System.Reflection;
+using System.Threading;
 using System.Windows.Forms;
 using KeePass.DataExchange;
 using KeePass.Plugins;
@@ -21,7 +20,7 @@ namespace KeePassAutoReload
         private const int MinimumIntervalSeconds = 10;
 
         private IPluginHost m_host;
-        private Timer m_timer;
+        private System.Windows.Forms.Timer m_timer;
         private ToolStripMenuItem m_enableItem;
         private ToolStripMenuItem m_skipModifiedItem;
         private ToolStripMenuItem m_intervalItem;
@@ -30,11 +29,12 @@ namespace KeePassAutoReload
         public override bool Initialize(IPluginHost host)
         {
             m_host = host;
-            m_timer = new Timer();
+            m_timer = new System.Windows.Forms.Timer();
             m_timer.Tick += OnTimerTick;
             ConfigureTimer();
 
             if (IsEnabled()) m_timer.Start();
+            StartAutoUpdateCheck();
             return true;
         }
 
@@ -90,88 +90,166 @@ namespace KeePassAutoReload
 
         private void OnAbout(object sender, EventArgs e)
         {
-            Assembly assembly = Assembly.GetExecutingAssembly();
-            string version = FileVersionInfo.GetVersionInfo(assembly.Location).FileVersion;
-            string message = PluginAboutInfo.BuildText(version, GetIntervalSeconds(), GetSkipModified());
-            MessageBox.Show(message, ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            string message = PluginAboutInfo.BuildText(UpdateChecker.GetCurrentVersion(), GetIntervalSeconds(), GetSkipModified());
+            MessageBox.Show(GetOwner(), message, ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void OnCheckForUpdates(object sender, EventArgs e)
         {
+            CheckForUpdatesAsync(true);
+        }
+
+        private void StartAutoUpdateCheck()
+        {
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                Thread.Sleep(4000);
+                CheckForUpdates(false);
+            });
+        }
+
+        private void CheckForUpdatesAsync(bool interactive)
+        {
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                CheckForUpdates(interactive);
+            });
+        }
+
+        private void CheckForUpdates(bool interactive)
+        {
             try
             {
-                Assembly assembly = Assembly.GetExecutingAssembly();
-                string currentPath = assembly.Location;
-                string currentVersion = GetFileVersion(currentPath);
-                string tempPath = Path.Combine(Path.GetTempPath(),
-                    "KeePassAutoReload-" + Guid.NewGuid().ToString("N") + ".dll");
+                ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
+                UpdateInfo info = UpdateChecker.CheckLatest();
 
-                using (WebClient client = new WebClient())
+                if (info == null || !info.IsUpdateAvailable)
                 {
-                    client.Headers.Add("User-Agent", "KeePassAutoReload");
-                    client.DownloadFile(PluginUpdateInfo.LatestDllUrl, tempPath);
-                }
-
-                string remoteVersion = GetFileVersion(tempPath);
-                if (!PluginUpdateInfo.IsRemoteNewer(currentVersion, remoteVersion))
-                {
-                    File.Delete(tempPath);
-                    MessageBox.Show("You are already using the latest version.\r\n\r\nVersion: " + currentVersion,
-                        ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    if (interactive)
+                    {
+                        ShowOnUi(delegate
+                        {
+                            MessageBox.Show(GetOwner(),
+                                "You are already using the latest version: " + UpdateChecker.GetCurrentVersion(),
+                                ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        });
+                    }
                     return;
                 }
 
-                DialogResult answer = MessageBox.Show(
-                    "A newer version is available.\r\n\r\nCurrent version: " + currentVersion +
-                    "\r\nNew version: " + remoteVersion + "\r\n\r\nDownload and install after KeePass closes?",
-                    ProductName, MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-                if (answer != DialogResult.Yes)
+                ShowOnUi(delegate
                 {
-                    File.Delete(tempPath);
-                    return;
-                }
-
-                StageUpdate(tempPath, currentPath, Process.GetCurrentProcess().Id);
-                MessageBox.Show(PluginUpdateInfo.BuildStagedUpdateMessage(currentVersion, remoteVersion),
-                    ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    PromptForUpdate(info);
+                });
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Update check failed:\r\n" + ex.Message,
-                    ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (!interactive) return;
+
+                ShowOnUi(delegate
+                {
+                    MessageBox.Show(GetOwner(), "Update check failed:\r\n" + ex.Message,
+                        ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                });
             }
         }
 
-        private static string GetFileVersion(string path)
+        private void PromptForUpdate(UpdateInfo info)
         {
-            string version = FileVersionInfo.GetVersionInfo(path).FileVersion;
-            return string.IsNullOrEmpty(version) ? "0.0.0.0" : version;
+            string message = "A new version of KeePass Auto Reload is available.\r\n\r\n" +
+                "Current version: " + UpdateChecker.GetCurrentVersion() + "\r\n" +
+                "Latest version: " + info.LatestVersion + "\r\n\r\n" +
+                "Download and install the update now?";
+
+            DialogResult result = MessageBox.Show(GetOwner(), message, ProductName + " Update",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+
+            if (result == DialogResult.Yes)
+            {
+                InstallUpdateAsync(info);
+            }
         }
 
-        private static void StageUpdate(string sourcePath, string targetPath, int processId)
+        private void InstallUpdateAsync(UpdateInfo info)
         {
-            string scriptPath = Path.Combine(Path.GetTempPath(),
-                "KeePassAutoReloadUpdate-" + Guid.NewGuid().ToString("N") + ".cmd");
-            string script = "@echo off\r\n" +
-                "setlocal\r\n" +
-                ":wait\r\n" +
-                "tasklist /FI \"PID eq " + processId + "\" | find \"" + processId + "\" >nul\r\n" +
-                "if not errorlevel 1 (\r\n" +
-                "  timeout /t 1 /nobreak >nul\r\n" +
-                "  goto wait\r\n" +
-                ")\r\n" +
-                "copy /Y \"" + sourcePath + "\" \"" + targetPath + "\" >nul\r\n" +
-                "del \"" + sourcePath + "\" >nul 2>nul\r\n" +
-                "del \"%~f0\" >nul 2>nul\r\n";
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
+                    string targetPath = GetPluginPackagePath();
+                    string tempPath = targetPath + ".download";
 
-            File.WriteAllText(scriptPath, script);
+                    using (WebClient client = new WebClient())
+                    {
+                        client.Headers[HttpRequestHeader.UserAgent] = "KeePassAutoReload";
+                        client.DownloadFile(info.AssetUrl, tempPath);
+                    }
 
-            ProcessStartInfo startInfo = new ProcessStartInfo();
-            startInfo.FileName = scriptPath;
-            startInfo.CreateNoWindow = true;
-            startInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            Process.Start(startInfo);
+                    try
+                    {
+                        File.Copy(tempPath, targetPath, true);
+                        File.Delete(tempPath);
+
+                        ShowOnUi(delegate
+                        {
+                            MessageBox.Show(GetOwner(),
+                                "KeePass Auto Reload has been updated. Restart KeePass to use the new version.",
+                                ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        });
+                    }
+                    catch (Exception copyEx)
+                    {
+                        string pendingPath = targetPath + ".new";
+                        File.Copy(tempPath, pendingPath, true);
+                        File.Delete(tempPath);
+
+                        ShowOnUi(delegate
+                        {
+                            MessageBox.Show(GetOwner(),
+                                "The update was downloaded, but the active plugin file could not be replaced.\r\n" +
+                                "New file: " + pendingPath + "\r\n" +
+                                "Reason: " + copyEx.Message,
+                                ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    ShowOnUi(delegate
+                    {
+                        MessageBox.Show(GetOwner(), "Update download failed:\r\n" + ex.Message,
+                            ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    });
+                }
+            });
+        }
+
+        private static string GetPluginPackagePath()
+        {
+            string keepassDir = Path.GetDirectoryName(Application.ExecutablePath);
+            string pluginsDir = Path.Combine(keepassDir, "Plugins");
+            Directory.CreateDirectory(pluginsDir);
+            return Path.Combine(pluginsDir, "KeePassAutoReload.dll");
+        }
+
+        private void ShowOnUi(MethodInvoker action)
+        {
+            Form owner = GetOwner();
+            if (owner != null && !owner.IsDisposed)
+            {
+                if (owner.InvokeRequired) owner.BeginInvoke(action);
+                else action();
+            }
+            else
+            {
+                action();
+            }
+        }
+
+        private Form GetOwner()
+        {
+            return (m_host != null) ? m_host.MainWindow : null;
         }
 
         private void Synchronize(bool skipWhenModified, bool showResult)

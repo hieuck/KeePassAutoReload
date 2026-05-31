@@ -9,9 +9,9 @@ internal static class Program
         SkipsModifiedDatabaseWhenConfigured();
         AllowsModifiedDatabaseWhenConfigured();
         AboutTextIncludesVersionAndCurrentSettings();
-        DetectsNewerUpdateVersion();
-        RejectsSameOrOlderUpdateVersion();
-        UpdateMessageIncludesRestartInstruction();
+        UpdateCheckerDetectsNewerSemanticVersions();
+        UpdateCheckerIgnoresSameOrInvalidVersions();
+        UpdateCheckerSelectsNewestSemanticTag();
         return 0;
     }
 
@@ -40,24 +40,22 @@ internal static class Program
         AssertContains(text, "Skip modified databases: Yes");
     }
 
-    private static void DetectsNewerUpdateVersion()
+    private static void UpdateCheckerDetectsNewerSemanticVersions()
     {
-        AssertTrue(PluginUpdateInfo.IsRemoteNewer("1.0.1.0", "1.0.2.0"), "newer remote version should update");
+        AssertTrue(UpdateChecker.IsNewerVersion("1.0.1", "v1.0.2"), "patch update should be detected");
+        AssertTrue(UpdateChecker.IsNewerVersion("1.0.1", "v1.1.0"), "minor update should be detected");
     }
 
-    private static void RejectsSameOrOlderUpdateVersion()
+    private static void UpdateCheckerIgnoresSameOrInvalidVersions()
     {
-        AssertFalse(PluginUpdateInfo.IsRemoteNewer("1.0.1.0", "1.0.1.0"), "same remote version should not update");
-        AssertFalse(PluginUpdateInfo.IsRemoteNewer("1.0.1.0", "1.0.0.0"), "older remote version should not update");
+        AssertFalse(UpdateChecker.IsNewerVersion("1.0.1", "1.0.1"), "same version should not update");
+        AssertFalse(UpdateChecker.IsNewerVersion("1.0.1", "latest"), "non-version tag should not update");
     }
 
-    private static void UpdateMessageIncludesRestartInstruction()
+    private static void UpdateCheckerSelectsNewestSemanticTag()
     {
-        string text = PluginUpdateInfo.BuildStagedUpdateMessage("1.0.1.0", "1.0.2.0");
-
-        AssertContains(text, "Current version: 1.0.1.0");
-        AssertContains(text, "New version: 1.0.2.0");
-        AssertContains(text, "Close KeePass");
+        string tag = UpdateChecker.GetNewestVersionTag(new string[] { "latest", "v1.0.1", "v1.1.0", "draft" });
+        AssertEqual("v1.1.0", tag, "newest semantic release tag should be selected");
     }
 
     private static void AssertTrue(bool value, string message)
@@ -75,6 +73,14 @@ internal static class Program
         if (value == null || !value.Contains(expected))
         {
             throw new Exception("expected text to contain: " + expected);
+        }
+    }
+
+    private static void AssertEqual<T>(T expected, T actual, string message)
+    {
+        if (!object.Equals(expected, actual))
+        {
+            throw new Exception(message + ". Expected: " + expected + ", actual: " + actual);
         }
     }
 }

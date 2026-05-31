@@ -16,4 +16,4 @@ The plugin also provides **Synchronize Now** for a manual sync.
 
 By default, automatic sync is skipped when the active KeePass database has unsaved local changes. Use **Sync Even When Modified** only if you accept KeePass running a merge while the local database is dirty.
 
-Use **Tools -> KeePass Auto Reload -> Check for Updates** to download the latest GitHub release. If a newer DLL is available, the plugin stages it and installs it after KeePass exits.
+The plugin automatically checks GitHub releases shortly after KeePass starts. Use **Tools -> KeePass Auto Reload -> Check for Updates** to check manually. If a newer version tag is available, the plugin downloads and installs the release asset, then asks you to restart KeePass.
