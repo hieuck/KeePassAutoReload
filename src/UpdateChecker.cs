@@ -30,12 +30,14 @@ namespace KeePassAutoReload
         private readonly HttpClientHandler _handler;
 
         internal HttpClientHandler Handler { get { return _handler; } }
+        internal TimeSpan Timeout { get { return _client.Timeout; } }
 
         public HttpUpdateClient()
         {
             _handler = new HttpClientHandler();
             _handler.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
             _client = new HttpClient(_handler);
+            _client.Timeout = TimeSpan.FromSeconds(30);
             _client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "KeePassAutoReload");
             _client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         }
