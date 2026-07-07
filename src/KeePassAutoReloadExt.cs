@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using System.Net;
-using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using KeePass.DataExchange;
 using KeePass.Plugins;
@@ -101,27 +101,24 @@ namespace KeePassAutoReload
 
         private void StartAutoUpdateCheck()
         {
-            ThreadPool.QueueUserWorkItem(delegate
+            Task.Run(async () =>
             {
-                Thread.Sleep(4000);
-                CheckForUpdates(false);
+                await Task.Delay(4000);
+                await CheckForUpdatesAsync(false);
             });
         }
 
         private void CheckForUpdatesAsync(bool interactive)
         {
-            ThreadPool.QueueUserWorkItem(delegate
-            {
-                CheckForUpdates(interactive);
-            });
+            Task.Run(async () => await CheckForUpdates(interactive));
         }
 
-        private void CheckForUpdates(bool interactive)
+        private async Task CheckForUpdates(bool interactive)
         {
             try
             {
                 ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
-                UpdateInfo info = UpdateChecker.CheckLatest();
+                UpdateInfo info = await UpdateChecker.CheckLatestAsync();
 
                 if (info == null || !info.IsUpdateAvailable)
                 {
@@ -172,57 +169,58 @@ namespace KeePassAutoReload
 
         private void InstallUpdateAsync(UpdateInfo info)
         {
-            ThreadPool.QueueUserWorkItem(delegate
+            Task.Run(async () => await InstallUpdate(info));
+        }
+
+        private async Task InstallUpdate(UpdateInfo info)
+        {
+            try
             {
+                ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
+                string targetPath = GetPluginPackagePath();
+                string tempPath = targetPath + ".download";
+
+                using (IUpdateClient client = new HttpUpdateClient())
+                {
+                    await client.DownloadFileAsync(info.AssetUrl, tempPath);
+                }
+
                 try
                 {
-                    ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
-                    string targetPath = GetPluginPackagePath();
-                    string tempPath = targetPath + ".download";
+                    File.Copy(tempPath, targetPath, true);
+                    File.Delete(tempPath);
 
-                    using (WebClient client = new WebClient())
-                    {
-                        client.Headers[HttpRequestHeader.UserAgent] = "KeePassAutoReload";
-                        client.DownloadFile(info.AssetUrl, tempPath);
-                    }
-
-                    try
-                    {
-                        File.Copy(tempPath, targetPath, true);
-                        File.Delete(tempPath);
-
-                        ShowOnUi(delegate
-                        {
-                            MessageBox.Show(GetOwner(),
-                                "KeePass Auto Reload has been updated. Restart KeePass to use the new version.",
-                                ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        });
-                    }
-                    catch (Exception copyEx)
-                    {
-                        string pendingPath = targetPath + ".new";
-                        File.Copy(tempPath, pendingPath, true);
-                        File.Delete(tempPath);
-
-                        ShowOnUi(delegate
-                        {
-                            MessageBox.Show(GetOwner(),
-                                "The update was downloaded, but the active plugin file could not be replaced.\r\n" +
-                                "New file: " + pendingPath + "\r\n" +
-                                "Reason: " + copyEx.Message,
-                                ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        });
-                    }
-                }
-                catch (Exception ex)
-                {
                     ShowOnUi(delegate
                     {
-                        MessageBox.Show(GetOwner(), "Update download failed:\r\n" + ex.Message,
+                        MessageBox.Show(GetOwner(),
+                            "KeePass Auto Reload has been updated. Restart KeePass to use the new version.",
+                            ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    });
+                }
+                catch (Exception copyEx)
+                {
+                    string pendingPath = targetPath + ".new";
+                    File.Copy(tempPath, pendingPath, true);
+                    File.Delete(tempPath);
+
+                    ShowOnUi(delegate
+                    {
+                        MessageBox.Show(GetOwner(),
+                            "The update was downloaded, but the active plugin file could not be replaced.\r\n" +
+                            "New file: " + pendingPath + "\r\n" +
+                            "Reason: " + copyEx.Message,
                             ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     });
                 }
-            });
+            }
+            catch (Exception ex)
+            {
+                ShowOnUi(delegate
+                {
+                    MessageBox.Show(GetOwner(), "Update download failed:\r\n" + ex.Message,
+                        ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                });
+            }
         }
 
         private static string GetPluginPackagePath()

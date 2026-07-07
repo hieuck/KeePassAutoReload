@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace KeePassAutoReload
 {
@@ -12,6 +15,40 @@ namespace KeePassAutoReload
         public string ReleaseUrl;
         public string AssetUrl;
         public bool IsUpdateAvailable;
+    }
+
+    internal interface IUpdateClient
+    {
+        Task<string> DownloadStringAsync(string url);
+        Task DownloadFileAsync(string url, string destinationPath);
+    }
+
+    internal sealed class HttpUpdateClient : IUpdateClient, IDisposable
+    {
+        private readonly HttpClient _client;
+
+        public HttpUpdateClient()
+        {
+            _client = new HttpClient();
+            _client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "KeePassAutoReload");
+            _client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        }
+
+        public Task<string> DownloadStringAsync(string url)
+        {
+            return _client.GetStringAsync(url);
+        }
+
+        public async Task DownloadFileAsync(string url, string destinationPath)
+        {
+            byte[] data = await _client.GetByteArrayAsync(url);
+            File.WriteAllBytes(destinationPath, data);
+        }
+
+        public void Dispose()
+        {
+            _client.Dispose();
+        }
     }
 
     internal static class UpdateChecker
@@ -43,21 +80,26 @@ namespace KeePassAutoReload
             return candidate.CompareTo(current) > 0;
         }
 
-        public static UpdateInfo CheckLatest()
+        public static async Task<UpdateInfo> CheckLatestAsync(IUpdateClient client)
         {
-            using (WebClient client = new WebClient())
-            {
-                client.Headers[HttpRequestHeader.UserAgent] = "KeePassAutoReload";
-                client.Headers[HttpRequestHeader.Accept] = "application/vnd.github+json";
-                string json = client.DownloadString(ReleasesApiUrl);
-                string tagName = GetNewestVersionTag(ExtractJsonStrings(json, "tag_name").ToArray());
+            if (client == null) throw new ArgumentNullException("client");
 
-                UpdateInfo info = new UpdateInfo();
-                info.LatestVersion = tagName;
-                info.ReleaseUrl = BuildReleaseUrl(tagName);
-                info.AssetUrl = BuildDllAssetUrl(tagName);
-                info.IsUpdateAvailable = IsNewerVersion(GetCurrentVersion(), tagName);
-                return info;
+            string json = await client.DownloadStringAsync(ReleasesApiUrl);
+            string tagName = GetNewestVersionTag(ExtractJsonStrings(json, "tag_name").ToArray());
+
+            UpdateInfo info = new UpdateInfo();
+            info.LatestVersion = tagName;
+            info.ReleaseUrl = BuildReleaseUrl(tagName);
+            info.AssetUrl = BuildDllAssetUrl(tagName);
+            info.IsUpdateAvailable = IsNewerVersion(GetCurrentVersion(), tagName);
+            return info;
+        }
+
+        public static async Task<UpdateInfo> CheckLatestAsync()
+        {
+            using (HttpUpdateClient client = new HttpUpdateClient())
+            {
+                return await CheckLatestAsync(client);
             }
         }
 
@@ -89,6 +131,10 @@ namespace KeePassAutoReload
             string normalized = value.Trim();
             if (normalized.StartsWith("v", StringComparison.OrdinalIgnoreCase))
                 normalized = normalized.Substring(1);
+
+            int metadataIndex = normalized.IndexOf('+');
+            if (metadataIndex >= 0)
+                normalized = normalized.Substring(0, metadataIndex);
 
             return Version.TryParse(normalized, out version);
         }
