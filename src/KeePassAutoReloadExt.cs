@@ -108,9 +108,9 @@ namespace KeePassAutoReload
             });
         }
 
-        private void CheckForUpdatesAsync(bool interactive)
+        private Task CheckForUpdatesAsync(bool interactive)
         {
-            Task.Run(async () => await CheckForUpdates(interactive));
+            return Task.Run(async () => await CheckForUpdates(interactive));
         }
 
         private async Task CheckForUpdates(bool interactive)
@@ -180,7 +180,7 @@ namespace KeePassAutoReload
                 string targetPath = GetPluginPackagePath();
                 string tempPath = targetPath + ".download";
 
-                using (IUpdateClient client = new HttpUpdateClient())
+                using (HttpUpdateClient client = new HttpUpdateClient())
                 {
                     await client.DownloadFileAsync(info.AssetUrl, tempPath);
                 }
