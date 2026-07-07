@@ -29,6 +29,7 @@
     <Compile Include="KeePassAutoReloadExt.cs" />
     <Compile Include="PluginAboutInfo.cs" />
     <Compile Include="PluginPathResolver.cs" />
+    <Compile Include="PluginUpdater.cs" />
     <Compile Include="SyncGuard.cs" />
     <Compile Include="UpdateChecker.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

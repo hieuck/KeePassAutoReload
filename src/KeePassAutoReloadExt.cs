@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -200,12 +201,23 @@ namespace KeePassAutoReload
                     File.Copy(tempPath, pendingPath, true);
                     File.Delete(tempPath);
 
+                    bool updaterScheduled = TryScheduleUpdater(targetPath, pendingPath);
+
                     ShowOnUi(delegate
                     {
-                        MessageBox.Show(GetOwner(),
-                            "The update was downloaded, but the active plugin file could not be replaced.\r\n" +
-                            "New file: " + pendingPath + "\r\n" +
-                            "Reason: " + copyEx.Message,
+                        string message;
+                        if (updaterScheduled)
+                        {
+                            message = "The update was downloaded and will be installed when KeePass exits.\r\n" +
+                                "KeePass will restart automatically after the update is applied.";
+                        }
+                        else
+                        {
+                            message = "The update was downloaded, but the active plugin file could not be replaced.\r\n" +
+                                "New file: " + pendingPath + "\r\n" +
+                                "Reason: " + copyEx.Message;
+                        }
+                        MessageBox.Show(GetOwner(), message,
                             ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     });
                 }
@@ -225,6 +237,25 @@ namespace KeePassAutoReload
             return PluginPathResolver.ResolvePluginPackagePath(
                 typeof(KeePassAutoReloadExt).Assembly.Location,
                 Path.GetDirectoryName(Application.ExecutablePath));
+        }
+
+        private bool TryScheduleUpdater(string pluginPath, string newPluginPath)
+        {
+            try
+            {
+                string updaterPath = Path.Combine(Path.GetDirectoryName(pluginPath), "KeePassAutoReload.Updater.exe");
+                return PluginUpdater.TryScheduleUpdate(
+                    pluginPath,
+                    newPluginPath,
+                    updaterPath,
+                    Process.GetCurrentProcess().Id,
+                    Application.ExecutablePath,
+                    new ProcessStarter());
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private void ShowOnUi(MethodInvoker action)
