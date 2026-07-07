@@ -287,6 +287,170 @@ namespace KeePassAutoReload.Tests
         }
     }
 
+    public class PluginUpdaterTests
+    {
+        private sealed class FakeProcessStarter : IProcessStarter
+        {
+            public string LastFileName { get; private set; }
+            public string LastArguments { get; private set; }
+            public int StartCount { get; private set; }
+
+            public void Start(string fileName, string arguments)
+            {
+                LastFileName = fileName;
+                LastArguments = arguments;
+                StartCount++;
+            }
+        }
+
+        [Fact]
+        public void BuildArguments_IncludesProcessIdSourceAndDestination()
+        {
+            string args = PluginUpdater.BuildArguments(
+                @"C:\KeePass\Plugins\KeePassAutoReload.dll",
+                @"C:\KeePass\Plugins\KeePassAutoReload.dll.new",
+                1234,
+                null);
+
+            Assert.Contains("--process-id 1234", args);
+            Assert.Contains("--source \"C:\\KeePass\\Plugins\\KeePassAutoReload.dll.new\"", args);
+            Assert.Contains("--destination \"C:\\KeePass\\Plugins\\KeePassAutoReload.dll\"", args);
+            Assert.DoesNotContain("--restart", args);
+        }
+
+        [Fact]
+        public void BuildArguments_IncludesRestartWhenProvided()
+        {
+            string args = PluginUpdater.BuildArguments(
+                @"C:\KeePass\Plugins\KeePassAutoReload.dll",
+                @"C:\KeePass\Plugins\KeePassAutoReload.dll.new",
+                1234,
+                @"C:\KeePass\KeePass.exe");
+
+            Assert.Contains("--restart \"C:\\KeePass\\KeePass.exe\"", args);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void TryScheduleUpdate_ThrowsWhenPluginPathIsInvalid(string pluginPath)
+        {
+            FakeProcessStarter starter = new FakeProcessStarter();
+            Assert.Throws<ArgumentException>(() =>
+                PluginUpdater.TryScheduleUpdate(pluginPath, @"C:\new.dll", @"C:\updater.exe", 1234, @"C:\KeePass.exe", starter));
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void TryScheduleUpdate_ThrowsWhenNewPluginPathIsInvalid(string newPluginPath)
+        {
+            FakeProcessStarter starter = new FakeProcessStarter();
+            Assert.Throws<ArgumentException>(() =>
+                PluginUpdater.TryScheduleUpdate(@"C:\plugin.dll", newPluginPath, @"C:\updater.exe", 1234, @"C:\KeePass.exe", starter));
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void TryScheduleUpdate_ThrowsWhenUpdaterPathIsInvalid(string updaterPath)
+        {
+            FakeProcessStarter starter = new FakeProcessStarter();
+            Assert.Throws<ArgumentException>(() =>
+                PluginUpdater.TryScheduleUpdate(@"C:\plugin.dll", @"C:\new.dll", updaterPath, 1234, @"C:\KeePass.exe", starter));
+        }
+
+        [Fact]
+        public void TryScheduleUpdate_ThrowsWhenStarterIsNull()
+        {
+            Assert.Throws<ArgumentNullException>(() =>
+                PluginUpdater.TryScheduleUpdate(@"C:\plugin.dll", @"C:\new.dll", @"C:\updater.exe", 1234, @"C:\KeePass.exe", null));
+        }
+
+        [Fact]
+        public void TryScheduleUpdate_ReturnsFalseWhenNewPluginFileDoesNotExist()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            try
+            {
+                Directory.CreateDirectory(tempDir);
+                string pluginPath = Path.Combine(tempDir, "KeePassAutoReload.dll");
+                string newPluginPath = Path.Combine(tempDir, "KeePassAutoReload.dll.new");
+                string updaterPath = Path.Combine(tempDir, "KeePassAutoReload.Updater.exe");
+                File.WriteAllText(updaterPath, "updater");
+
+                FakeProcessStarter starter = new FakeProcessStarter();
+                bool result = PluginUpdater.TryScheduleUpdate(pluginPath, newPluginPath, updaterPath, 1234, @"C:\KeePass.exe", starter);
+
+                Assert.False(result);
+                Assert.Equal(0, starter.StartCount);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+            }
+        }
+
+        [Fact]
+        public void TryScheduleUpdate_ReturnsFalseWhenUpdaterDoesNotExist()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            try
+            {
+                Directory.CreateDirectory(tempDir);
+                string pluginPath = Path.Combine(tempDir, "KeePassAutoReload.dll");
+                string newPluginPath = Path.Combine(tempDir, "KeePassAutoReload.dll.new");
+                string updaterPath = Path.Combine(tempDir, "KeePassAutoReload.Updater.exe");
+                File.WriteAllText(pluginPath, "plugin");
+                File.WriteAllText(newPluginPath, "new");
+
+                FakeProcessStarter starter = new FakeProcessStarter();
+                bool result = PluginUpdater.TryScheduleUpdate(pluginPath, newPluginPath, updaterPath, 1234, @"C:\KeePass.exe", starter);
+
+                Assert.False(result);
+                Assert.Equal(0, starter.StartCount);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+            }
+        }
+
+        [Fact]
+        public void TryScheduleUpdate_ReturnsTrueAndStartsUpdaterWhenFilesExist()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            try
+            {
+                Directory.CreateDirectory(tempDir);
+                string pluginPath = Path.Combine(tempDir, "KeePassAutoReload.dll");
+                string newPluginPath = Path.Combine(tempDir, "KeePassAutoReload.dll.new");
+                string updaterPath = Path.Combine(tempDir, "KeePassAutoReload.Updater.exe");
+                File.WriteAllText(pluginPath, "plugin");
+                File.WriteAllText(newPluginPath, "new");
+                File.WriteAllText(updaterPath, "updater");
+
+                FakeProcessStarter starter = new FakeProcessStarter();
+                bool result = PluginUpdater.TryScheduleUpdate(pluginPath, newPluginPath, updaterPath, 5678, @"C:\KeePass\KeePass.exe", starter);
+
+                Assert.True(result);
+                Assert.Equal(1, starter.StartCount);
+                Assert.Equal(updaterPath, starter.LastFileName);
+                Assert.Contains("--process-id 5678", starter.LastArguments);
+                Assert.Contains("--source \"" + newPluginPath + "\"", starter.LastArguments);
+                Assert.Contains("--destination \"" + pluginPath + "\"", starter.LastArguments);
+                Assert.Contains("--restart \"C:\\KeePass\\KeePass.exe\"", starter.LastArguments);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
     internal sealed class FakeUpdateClient : IUpdateClient
     {
         public string Response { get; set; }

@@ -53,13 +53,17 @@ jobs:
         shell: powershell
         run: dotnet test tests/KeePassAutoReload.Tests.csproj
 
-      - name: Build plugin DLL
+      - name: Build plugin and updater
         shell: powershell
         run: |
           msbuild src/KeePassAutoReload.csproj `
             /p:Configuration=Release `
             /p:Platform="AnyCPU" `
             /p:KeePassReferencePath="$env:KEEPASS_DIR"
+
+          msbuild src/KeePassAutoReload.Updater/KeePassAutoReload.Updater.csproj `
+            /p:Configuration=Release `
+            /p:Platform="AnyCPU"
 
       - name: Prepare release assets
         shell: powershell
@@ -68,9 +72,11 @@ jobs:
           New-Item -ItemType Directory -Path $dist -Force | Out-Null
 
           Copy-Item "bin/Release/KeePassAutoReload.dll" "$dist/KeePassAutoReload.dll" -Force
+          Copy-Item "src/KeePassAutoReload.Updater/bin/Release/KeePassAutoReload.Updater.exe" `
+            "$dist/KeePassAutoReload.Updater.exe" -Force
           Copy-Item "README.md" "$dist/README.md" -Force
 
-          Compress-Archive -Path "$dist/KeePassAutoReload.dll", "$dist/README.md" `
+          Compress-Archive -Path "$dist/KeePassAutoReload.dll", "$dist/KeePassAutoReload.Updater.exe", "$dist/README.md" `
             -DestinationPath "$dist/KeePassAutoReload.zip" -Force
 
       - name: Upload build artifact
@@ -92,4 +98,5 @@ jobs:
           make_latest: true
           files: |
             dist/KeePassAutoReload.dll
+            dist/KeePassAutoReload.Updater.exe
             dist/KeePassAutoReload.zip
