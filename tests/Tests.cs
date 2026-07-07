@@ -152,6 +152,54 @@ namespace KeePassAutoReload.Tests
                 }
             }
         }
+
+        [Fact]
+        public void FallsBackWhenAssemblyLocationDoesNotExist()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            try
+            {
+                string missingPath = Path.Combine(tempDir, "missing", "KeePassAutoReload.dll");
+                string result = PluginPathResolver.ResolvePluginPackagePath(missingPath, tempDir);
+                string expected = Path.Combine(tempDir, "Plugins", "KeePassAutoReload.dll");
+                Assert.Equal(expected, result);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void FallsBackWhenAssemblyLocationIsEmptyOrWhitespace()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            try
+            {
+                string result = PluginPathResolver.ResolvePluginPackagePath("   ", tempDir);
+                string expected = Path.Combine(tempDir, "Plugins", "KeePassAutoReload.dll");
+                Assert.Equal(expected, result);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void ThrowsWhenKeePassDirectoryIsNullOrWhitespace(string keepassDirectory)
+        {
+            Assert.Throws<ArgumentException>(() => PluginPathResolver.ResolvePluginPackagePath(null, keepassDirectory));
+        }
     }
 
     internal sealed class FakeUpdateClient : IUpdateClient
