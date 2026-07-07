@@ -1,0 +1,60 @@
+name: Bug report
+about: Report a problem with the KeePass Auto Reload plugin
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill out the sections below so we can reproduce and fix it.
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: Which version of KeePass Auto Reload are you using?
+      placeholder: e.g. 1.1.1 or Latest Build
+    validations:
+      required: true
+  - type: input
+    id: keepass-version
+    attributes:
+      label: KeePass version
+      description: Which version of KeePass 2.x are you running?
+      placeholder: e.g. 2.61.1
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 10
+        - Windows 11
+        - Windows Server
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug and what you expected to happen.
+      placeholder: The plugin did not auto-sync after the remote database changed.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Provide minimal steps to reproduce the issue.
+      placeholder: |
+        1. Open KeePass with a Dropbox database.
+        2. Enable Auto Sync.
+        3. Edit the database from another client.
+        4. Wait for the sync interval.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error messages
+      description: Paste any error messages or relevant log output.
+      render: text
