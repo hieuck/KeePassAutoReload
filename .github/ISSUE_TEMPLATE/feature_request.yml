@@ -1,0 +1,30 @@
+name: Feature request
+about: Suggest an idea for KeePass Auto Reload
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature. Please describe the use case and the behavior you would like to see.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or limitation
+      description: What problem are you trying to solve? Is your feature request related to an existing issue?
+      placeholder: KeePass Auto Reload does not support a custom sync timeout.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or behavior you would like to see.
+      placeholder: Allow users to configure the sync interval in seconds from the menu.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe any alternative solutions or workarounds you have considered.
