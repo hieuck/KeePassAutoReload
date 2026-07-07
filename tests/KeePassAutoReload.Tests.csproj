@@ -9,6 +9,7 @@
     <Compile Include="..\src\AutoSyncPolicy.cs" Link="AutoSyncPolicy.cs" />
     <Compile Include="..\src\PluginAboutInfo.cs" Link="PluginAboutInfo.cs" />
     <Compile Include="..\src\PluginPathResolver.cs" Link="PluginPathResolver.cs" />
+    <Compile Include="..\src\SyncGuard.cs" Link="SyncGuard.cs" />
     <Compile Include="..\src\UpdateChecker.cs" Link="UpdateChecker.cs" />
   </ItemGroup>
   <ItemGroup>

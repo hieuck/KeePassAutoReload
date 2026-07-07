@@ -248,7 +248,7 @@ namespace KeePassAutoReload
 
         private void Synchronize(bool skipWhenModified, bool showResult)
         {
-            if (m_syncInProgress || m_host == null || m_host.Database == null) return;
+            if (m_syncInProgress || !SyncGuard.CanRunSync(m_host != null, m_host.Database != null, m_host.MainWindow != null)) return;
 
             PwDatabase database = m_host.Database;
             if (!AutoSyncPolicy.ShouldRun(database.IsOpen, database.Modified, skipWhenModified))
