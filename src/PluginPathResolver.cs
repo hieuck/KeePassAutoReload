@@ -12,9 +12,9 @@ namespace KeePassAutoReload
                 return assemblyLocation;
             }
 
-            if (string.IsNullOrEmpty(keepassExecutableDirectory))
+            if (string.IsNullOrWhiteSpace(keepassExecutableDirectory))
             {
-                throw new ArgumentException("KeePass executable directory must not be null or empty.", "keepassExecutableDirectory");
+                throw new ArgumentException("KeePass executable directory must not be null, empty, or whitespace.", "keepassExecutableDirectory");
             }
 
             string pluginsDir = Path.Combine(keepassExecutableDirectory, "Plugins");
