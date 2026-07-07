@@ -116,6 +116,36 @@ namespace KeePassAutoReload.Tests
         }
 
         [Fact]
+        public async Task ReturnsEmptyInfoWhenNoValidTags()
+        {
+            FakeUpdateClient client = new FakeUpdateClient { Response = "[{\"tag_name\":\"latest\"},{\"tag_name\":\"draft\"}]" };
+            UpdateInfo info = await UpdateChecker.CheckLatestAsync(client);
+            Assert.NotNull(info);
+            Assert.Equal(string.Empty, info.LatestVersion);
+            Assert.False(info.IsUpdateAvailable, "no update should be available when no valid version tags exist");
+        }
+
+        [Fact]
+        public async Task ReturnsEmptyInfoForEmptyReleasesResponse()
+        {
+            FakeUpdateClient client = new FakeUpdateClient { Response = "[]" };
+            UpdateInfo info = await UpdateChecker.CheckLatestAsync(client);
+            Assert.NotNull(info);
+            Assert.Equal(string.Empty, info.LatestVersion);
+            Assert.False(info.IsUpdateAvailable, "no update should be available for empty releases response");
+        }
+
+        [Fact]
+        public async Task ReturnsFalseForCurrentVersionWhenOnlySameVersionExists()
+        {
+            string current = UpdateChecker.GetCurrentVersion();
+            FakeUpdateClient client = new FakeUpdateClient { Response = "[{\"tag_name\":\"v" + current + "\"}]" };
+            UpdateInfo info = await UpdateChecker.CheckLatestAsync(client);
+            Assert.NotNull(info);
+            Assert.False(info.IsUpdateAvailable, "same version should not be reported as available update");
+        }
+
+        [Fact]
         public async Task PropagatesCancellationTokenToInjectedClient()
         {
             using (CancellationTokenSource cts = new CancellationTokenSource())
