@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
+using System.Security.Authentication;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -26,10 +27,15 @@ namespace KeePassAutoReload
     internal sealed class HttpUpdateClient : IUpdateClient, IDisposable
     {
         private readonly HttpClient _client;
+        private readonly HttpClientHandler _handler;
+
+        internal HttpClientHandler Handler { get { return _handler; } }
 
         public HttpUpdateClient()
         {
-            _client = new HttpClient();
+            _handler = new HttpClientHandler();
+            _handler.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+            _client = new HttpClient(_handler);
             _client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "KeePassAutoReload");
             _client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         }
@@ -48,6 +54,7 @@ namespace KeePassAutoReload
         public void Dispose()
         {
             _client.Dispose();
+            _handler.Dispose();
         }
     }
 

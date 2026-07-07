@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Net;
+using System.Security.Authentication;
 using System.Threading.Tasks;
 using KeePassAutoReload;
 
@@ -16,6 +18,8 @@ internal static class Program
         UpdateCheckerHandlesSemanticVersionMetadata();
         UpdateCheckerSelectsNewestSemanticTag();
         UpdateCheckerFetchesLatestReleaseFromInjectedClientAsync().Wait();
+        UpdateCheckerDoesNotMutateGlobalSecurityProtocol();
+        HttpUpdateClientUsesModernTls();
         return 0;
     }
 
@@ -75,6 +79,23 @@ internal static class Program
         UpdateInfo info = await UpdateChecker.CheckLatestAsync(client);
         AssertEqual("v1.1.0", info.LatestVersion, "latest version should be parsed from injected client response");
         AssertTrue(info.IsUpdateAvailable, "an update should be available when injected response has newer version");
+    }
+
+    private static void UpdateCheckerDoesNotMutateGlobalSecurityProtocol()
+    {
+        SecurityProtocolType before = ServicePointManager.SecurityProtocol;
+        UpdateChecker.CheckLatestAsync(new FakeUpdateClient { Response = "[{\"tag_name\":\"v1.0.1\"}]" }).Wait();
+        SecurityProtocolType after = ServicePointManager.SecurityProtocol;
+        AssertEqual(before, after, "update check should not mutate global ServicePointManager.SecurityProtocol");
+    }
+
+    private static void HttpUpdateClientUsesModernTls()
+    {
+        using (HttpUpdateClient client = new HttpUpdateClient())
+        {
+            AssertTrue(client.Handler.SslProtocols.HasFlag(SslProtocols.Tls12) || client.Handler.SslProtocols.HasFlag(SslProtocols.Tls13),
+                "HttpUpdateClient should enable TLS 1.2 or higher");
+        }
     }
 
     private static void AssertTrue(bool value, string message)
