@@ -20,6 +20,7 @@ internal static class Program
         UpdateCheckerFetchesLatestReleaseFromInjectedClientAsync().Wait();
         UpdateCheckerDoesNotMutateGlobalSecurityProtocol();
         HttpUpdateClientUsesModernTls();
+        HttpUpdateClientHasReasonableDefaultTimeout();
         return 0;
     }
 
@@ -95,6 +96,15 @@ internal static class Program
         {
             AssertTrue(client.Handler.SslProtocols.HasFlag(SslProtocols.Tls12) || client.Handler.SslProtocols.HasFlag(SslProtocols.Tls13),
                 "HttpUpdateClient should enable TLS 1.2 or higher");
+        }
+    }
+
+    private static void HttpUpdateClientHasReasonableDefaultTimeout()
+    {
+        using (HttpUpdateClient client = new HttpUpdateClient())
+        {
+            AssertTrue(client.Timeout.TotalSeconds > 0 && client.Timeout.TotalSeconds <= 120,
+                "HttpUpdateClient should have a reasonable default timeout (0 < timeout <= 120s)");
         }
     }
 
