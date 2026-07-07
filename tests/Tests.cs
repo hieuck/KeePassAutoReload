@@ -9,6 +9,24 @@ using Xunit;
 
 namespace KeePassAutoReload.Tests
 {
+    public class SyncGuardTests
+    {
+        [Fact]
+        public void AllowsSyncWhenAllConditionsAreTrue()
+        {
+            Assert.True(SyncGuard.CanRunSync(true, true, true), "sync should run when host, database, and main window are present");
+        }
+
+        [Theory]
+        [InlineData(false, true, true)]
+        [InlineData(true, false, true)]
+        [InlineData(true, true, false)]
+        public void BlocksSyncWhenAnyConditionIsFalse(bool hasHost, bool hasDatabase, bool hasMainWindow)
+        {
+            Assert.False(SyncGuard.CanRunSync(hasHost, hasDatabase, hasMainWindow), "sync should be blocked when any required condition is false");
+        }
+    }
+
     public class AutoSyncPolicyTests
     {
         [Fact]
