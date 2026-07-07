@@ -43,15 +43,23 @@ namespace KeePassAutoReload
             _client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         }
 
-        public Task<string> DownloadStringAsync(string url, CancellationToken cancellationToken = default)
+        public async Task<string> DownloadStringAsync(string url, CancellationToken cancellationToken = default)
         {
-            return _client.GetStringAsync(url, cancellationToken);
+            using (HttpResponseMessage response = await _client.GetAsync(url, cancellationToken))
+            {
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsStringAsync();
+            }
         }
 
         public async Task DownloadFileAsync(string url, string destinationPath, CancellationToken cancellationToken = default)
         {
-            byte[] data = await _client.GetByteArrayAsync(url, cancellationToken);
-            File.WriteAllBytes(destinationPath, data);
+            using (HttpResponseMessage response = await _client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken))
+            {
+                response.EnsureSuccessStatusCode();
+                byte[] data = await response.Content.ReadAsByteArrayAsync();
+                File.WriteAllBytes(destinationPath, data);
+            }
         }
 
         public void Dispose()
