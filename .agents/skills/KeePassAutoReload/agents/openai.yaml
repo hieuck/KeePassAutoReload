@@ -1,0 +1,6 @@
+interface:
+  display_name: "KeePassAutoReload"
+  short_description: "Repo-specific patterns and workflows for KeePassAutoReload"
+  default_prompt: "Use the KeePassAutoReload repo skill to follow existing architecture, testing, and workflow conventions."
+policy:
+  allow_implicit_invocation: true
