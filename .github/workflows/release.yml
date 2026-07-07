@@ -51,7 +51,7 @@ jobs:
 
       - name: Run tests
         shell: powershell
-        run: dotnet run --project tests/KeePassAutoReload.Tests.csproj
+        run: dotnet test tests/KeePassAutoReload.Tests.csproj
 
       - name: Build plugin DLL
         shell: powershell

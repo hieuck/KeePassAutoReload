@@ -1,0 +1,178 @@
+using System;
+using System.IO;
+using System.Net;
+using System.Security.Authentication;
+using System.Threading.Tasks;
+using KeePassAutoReload;
+using Xunit;
+
+namespace KeePassAutoReload.Tests
+{
+    public class AutoSyncPolicyTests
+    {
+        [Fact]
+        public void RequiresOpenDatabase()
+        {
+            Assert.False(AutoSyncPolicy.ShouldRun(false, false, true), "closed database must not sync");
+        }
+
+        [Fact]
+        public void SkipsModifiedDatabaseWhenConfigured()
+        {
+            Assert.False(AutoSyncPolicy.ShouldRun(true, true, true), "modified database should be skipped by default");
+        }
+
+        [Fact]
+        public void AllowsModifiedDatabaseWhenConfigured()
+        {
+            Assert.True(AutoSyncPolicy.ShouldRun(true, true, false), "manual sync can include modified database");
+        }
+    }
+
+    public class PluginAboutInfoTests
+    {
+        [Fact]
+        public void AboutTextIncludesVersionAndCurrentSettings()
+        {
+            string text = PluginAboutInfo.BuildText("1.2.3.4", 30, true);
+
+            Assert.Contains("KeePass Auto Reload", text);
+            Assert.Contains("Version: 1.2.3.4", text);
+            Assert.Contains("Interval: 30 seconds", text);
+            Assert.Contains("Skip modified databases: Yes", text);
+        }
+    }
+
+    public class UpdateCheckerTests
+    {
+        [Fact]
+        public void DetectsNewerSemanticVersions()
+        {
+            Assert.True(UpdateChecker.IsNewerVersion("1.0.1", "v1.0.2"), "patch update should be detected");
+            Assert.True(UpdateChecker.IsNewerVersion("1.0.1", "v1.1.0"), "minor update should be detected");
+        }
+
+        [Fact]
+        public void IgnoresSameOrInvalidVersions()
+        {
+            Assert.False(UpdateChecker.IsNewerVersion("1.0.1", "1.0.1"), "same version should not update");
+            Assert.False(UpdateChecker.IsNewerVersion("1.0.1", "latest"), "non-version tag should not update");
+        }
+
+        [Fact]
+        public void HandlesSemanticVersionMetadata()
+        {
+            Assert.True(UpdateChecker.IsNewerVersion("1.0.0+c83c367", "v1.0.1"), "semver metadata in current version should be ignored");
+            Assert.False(UpdateChecker.IsNewerVersion("1.0.1+abc123", "1.0.1"), "same version with different metadata should not update");
+        }
+
+        [Fact]
+        public void SelectsNewestSemanticTag()
+        {
+            string tag = UpdateChecker.GetNewestVersionTag(new string[] { "latest", "v1.0.1", "v1.1.0", "draft" });
+            Assert.Equal("v1.1.0", tag);
+        }
+
+        [Fact]
+        public async Task FetchesLatestReleaseFromInjectedClient()
+        {
+            string json = "[{\"tag_name\":\"v1.0.1\"},{\"tag_name\":\"v1.1.0\"}]";
+            FakeUpdateClient client = new FakeUpdateClient { Response = json };
+            UpdateInfo info = await UpdateChecker.CheckLatestAsync(client);
+            Assert.Equal("v1.1.0", info.LatestVersion);
+            Assert.True(info.IsUpdateAvailable, "an update should be available when injected response has newer version");
+        }
+
+        [Fact]
+        public async Task DoesNotMutateGlobalSecurityProtocol()
+        {
+            SecurityProtocolType before = ServicePointManager.SecurityProtocol;
+            await UpdateChecker.CheckLatestAsync(new FakeUpdateClient { Response = "[{\"tag_name\":\"v1.0.1\"}]" });
+            SecurityProtocolType after = ServicePointManager.SecurityProtocol;
+            Assert.Equal(before, after);
+        }
+    }
+
+    public class HttpUpdateClientTests
+    {
+        [Fact]
+        public void UsesModernTls()
+        {
+            using (HttpUpdateClient client = new HttpUpdateClient())
+            {
+                Assert.True(client.Handler.SslProtocols.HasFlag(SslProtocols.Tls12) || client.Handler.SslProtocols.HasFlag(SslProtocols.Tls13),
+                    "HttpUpdateClient should enable TLS 1.2 or higher");
+            }
+        }
+
+        [Fact]
+        public void HasReasonableDefaultTimeout()
+        {
+            using (HttpUpdateClient client = new HttpUpdateClient())
+            {
+                Assert.True(client.Timeout.TotalSeconds > 0 && client.Timeout.TotalSeconds <= 120,
+                    "HttpUpdateClient should have a reasonable default timeout (0 < timeout <= 120s)");
+            }
+        }
+    }
+
+    public class PluginPathResolverTests
+    {
+        [Fact]
+        public void UsesAssemblyLocationWhenAvailable()
+        {
+            string tempFile = Path.GetTempFileName();
+            try
+            {
+                string result = PluginPathResolver.ResolvePluginPackagePath(tempFile, Path.GetTempPath());
+                Assert.Equal(tempFile, result);
+            }
+            finally
+            {
+                File.Delete(tempFile);
+            }
+        }
+
+        [Fact]
+        public void FallsBackToPluginsDirectory()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            try
+            {
+                string result = PluginPathResolver.ResolvePluginPackagePath(null, tempDir);
+                string expected = Path.Combine(tempDir, "Plugins", "KeePassAutoReload.dll");
+                Assert.Equal(expected, result);
+                Assert.True(Directory.Exists(Path.Combine(tempDir, "Plugins")), "fallback should create Plugins directory");
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+    }
+
+    internal sealed class FakeUpdateClient : IUpdateClient
+    {
+        public string Response { get; set; }
+        public byte[] FileData { get; set; }
+        public string LastDownloadDestination { get; private set; }
+
+        public Task<string> DownloadStringAsync(string url)
+        {
+            return Task.FromResult(Response ?? string.Empty);
+        }
+
+        public Task DownloadFileAsync(string url, string destinationPath)
+        {
+            LastDownloadDestination = destinationPath;
+            if (FileData != null)
+            {
+                File.WriteAllBytes(destinationPath, FileData);
+            }
+            return Task.CompletedTask;
+        }
+    }
+}
