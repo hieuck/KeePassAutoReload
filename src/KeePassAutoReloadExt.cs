@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Net;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using KeePass.DataExchange;
@@ -117,7 +116,6 @@ namespace KeePassAutoReload
         {
             try
             {
-                ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
                 UpdateInfo info = await UpdateChecker.CheckLatestAsync();
 
                 if (info == null || !info.IsUpdateAvailable)
@@ -176,7 +174,6 @@ namespace KeePassAutoReload
         {
             try
             {
-                ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)3072;
                 string targetPath = GetPluginPackagePath();
                 string tempPath = targetPath + ".download";
 
