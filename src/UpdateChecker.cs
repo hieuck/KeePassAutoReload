@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Reflection;
 using System.Security.Authentication;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace KeePassAutoReload
@@ -20,8 +21,8 @@ namespace KeePassAutoReload
 
     internal interface IUpdateClient
     {
-        Task<string> DownloadStringAsync(string url);
-        Task DownloadFileAsync(string url, string destinationPath);
+        Task<string> DownloadStringAsync(string url, CancellationToken cancellationToken = default);
+        Task DownloadFileAsync(string url, string destinationPath, CancellationToken cancellationToken = default);
     }
 
     internal sealed class HttpUpdateClient : IUpdateClient, IDisposable
@@ -42,14 +43,14 @@ namespace KeePassAutoReload
             _client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         }
 
-        public Task<string> DownloadStringAsync(string url)
+        public Task<string> DownloadStringAsync(string url, CancellationToken cancellationToken = default)
         {
-            return _client.GetStringAsync(url);
+            return _client.GetStringAsync(url, cancellationToken);
         }
 
-        public async Task DownloadFileAsync(string url, string destinationPath)
+        public async Task DownloadFileAsync(string url, string destinationPath, CancellationToken cancellationToken = default)
         {
-            byte[] data = await _client.GetByteArrayAsync(url);
+            byte[] data = await _client.GetByteArrayAsync(url, cancellationToken);
             File.WriteAllBytes(destinationPath, data);
         }
 
@@ -89,11 +90,12 @@ namespace KeePassAutoReload
             return candidate.CompareTo(current) > 0;
         }
 
-        public static async Task<UpdateInfo> CheckLatestAsync(IUpdateClient client)
+        public static async Task<UpdateInfo> CheckLatestAsync(IUpdateClient client, CancellationToken cancellationToken = default)
         {
             if (client == null) throw new ArgumentNullException("client");
 
-            string json = await client.DownloadStringAsync(ReleasesApiUrl);
+            cancellationToken.ThrowIfCancellationRequested();
+            string json = await client.DownloadStringAsync(ReleasesApiUrl, cancellationToken);
             string tagName = GetNewestVersionTag(ExtractJsonStrings(json, "tag_name").ToArray());
 
             UpdateInfo info = new UpdateInfo();
@@ -104,11 +106,11 @@ namespace KeePassAutoReload
             return info;
         }
 
-        public static async Task<UpdateInfo> CheckLatestAsync()
+        public static async Task<UpdateInfo> CheckLatestAsync(CancellationToken cancellationToken = default)
         {
             using (HttpUpdateClient client = new HttpUpdateClient())
             {
-                return await CheckLatestAsync(client);
+                return await CheckLatestAsync(client, cancellationToken);
             }
         }
 

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Security.Authentication;
+using System.Threading;
 using System.Threading.Tasks;
 using KeePassAutoReload;
 using Xunit;
@@ -94,6 +95,29 @@ namespace KeePassAutoReload.Tests
             UpdateInfo info = await UpdateChecker.CheckLatestAsync(client);
             Assert.Equal("v1.1.0", info.LatestVersion);
             Assert.True(info.IsUpdateAvailable, "an update should be available when injected response has newer version");
+        }
+
+        [Fact]
+        public async Task PropagatesCancellationTokenToInjectedClient()
+        {
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                FakeUpdateClient client = new FakeUpdateClient { Response = "[{\"tag_name\":\"v1.0.1\"}]" };
+                await UpdateChecker.CheckLatestAsync(client, cts.Token);
+                Assert.True(client.LastCancellationToken.HasValue, "cancellation token should be propagated to client");
+                Assert.Equal(cts.Token, client.LastCancellationToken.Value);
+            }
+        }
+
+        [Fact]
+        public async Task ThrowsOperationCanceledExceptionWhenAlreadyCanceled()
+        {
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                cts.Cancel();
+                FakeUpdateClient client = new FakeUpdateClient { Response = "[{\"tag_name\":\"v1.0.1\"}]" };
+                await Assert.ThrowsAsync<OperationCanceledException>(() => UpdateChecker.CheckLatestAsync(client, cts.Token));
+            }
         }
 
         [Fact]
@@ -220,15 +244,20 @@ namespace KeePassAutoReload.Tests
         public string Response { get; set; }
         public byte[] FileData { get; set; }
         public string LastDownloadDestination { get; private set; }
+        public CancellationToken? LastCancellationToken { get; private set; }
 
-        public Task<string> DownloadStringAsync(string url)
+        public Task<string> DownloadStringAsync(string url, CancellationToken cancellationToken = default)
         {
+            LastCancellationToken = cancellationToken;
+            cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(Response ?? string.Empty);
         }
 
-        public Task DownloadFileAsync(string url, string destinationPath)
+        public Task DownloadFileAsync(string url, string destinationPath, CancellationToken cancellationToken = default)
         {
             LastDownloadDestination = destinationPath;
+            LastCancellationToken = cancellationToken;
+            cancellationToken.ThrowIfCancellationRequested();
             if (FileData != null)
             {
                 File.WriteAllBytes(destinationPath, FileData);
