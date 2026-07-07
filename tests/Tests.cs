@@ -17,6 +17,12 @@ namespace KeePassAutoReload.Tests
         }
 
         [Fact]
+        public void ClosedDatabaseNeverRunsEvenIfModifiedAllowed()
+        {
+            Assert.False(AutoSyncPolicy.ShouldRun(false, false, false), "closed database must not sync even when modified is allowed");
+        }
+
+        [Fact]
         public void SkipsModifiedDatabaseWhenConfigured()
         {
             Assert.False(AutoSyncPolicy.ShouldRun(true, true, true), "modified database should be skipped by default");
@@ -26,6 +32,13 @@ namespace KeePassAutoReload.Tests
         public void AllowsModifiedDatabaseWhenConfigured()
         {
             Assert.True(AutoSyncPolicy.ShouldRun(true, true, false), "manual sync can include modified database");
+        }
+
+        [Fact]
+        public void RunsForOpenUnmodifiedDatabase()
+        {
+            Assert.True(AutoSyncPolicy.ShouldRun(true, false, true), "open unmodified database should sync");
+            Assert.True(AutoSyncPolicy.ShouldRun(true, false, false), "open unmodified database should sync regardless of skip-modified");
         }
     }
 
