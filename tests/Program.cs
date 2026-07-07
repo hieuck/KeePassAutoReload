@@ -21,6 +21,8 @@ internal static class Program
         UpdateCheckerDoesNotMutateGlobalSecurityProtocol();
         HttpUpdateClientUsesModernTls();
         HttpUpdateClientHasReasonableDefaultTimeout();
+        PluginPathResolverUsesAssemblyLocationWhenAvailable();
+        PluginPathResolverFallsBackToPluginsDirectory();
         return 0;
     }
 
@@ -105,6 +107,39 @@ internal static class Program
         {
             AssertTrue(client.Timeout.TotalSeconds > 0 && client.Timeout.TotalSeconds <= 120,
                 "HttpUpdateClient should have a reasonable default timeout (0 < timeout <= 120s)");
+        }
+    }
+
+    private static void PluginPathResolverUsesAssemblyLocationWhenAvailable()
+    {
+        string tempFile = Path.GetTempFileName();
+        try
+        {
+            string result = PluginPathResolver.ResolvePluginPackagePath(tempFile, Path.GetTempPath());
+            AssertEqual(tempFile, result, "resolver should return the existing assembly location");
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    private static void PluginPathResolverFallsBackToPluginsDirectory()
+    {
+        string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        try
+        {
+            string result = PluginPathResolver.ResolvePluginPackagePath(null, tempDir);
+            string expected = Path.Combine(tempDir, "Plugins", "KeePassAutoReload.dll");
+            AssertEqual(expected, result, "resolver should fall back to KeePass Plugins directory");
+            AssertTrue(Directory.Exists(Path.Combine(tempDir, "Plugins")), "fallback should create Plugins directory");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, true);
+            }
         }
     }
 

@@ -222,10 +222,9 @@ namespace KeePassAutoReload
 
         private static string GetPluginPackagePath()
         {
-            string keepassDir = Path.GetDirectoryName(Application.ExecutablePath);
-            string pluginsDir = Path.Combine(keepassDir, "Plugins");
-            Directory.CreateDirectory(pluginsDir);
-            return Path.Combine(pluginsDir, "KeePassAutoReload.dll");
+            return PluginPathResolver.ResolvePluginPackagePath(
+                typeof(KeePassAutoReloadExt).Assembly.Location,
+                Path.GetDirectoryName(Application.ExecutablePath));
         }
 
         private void ShowOnUi(MethodInvoker action)
