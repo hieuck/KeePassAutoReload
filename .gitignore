@@ -2,6 +2,7 @@ bin/
 obj/
 tests/bin/
 tests/obj/
+.worktrees/
 *.user
 *.suo
 *.plgx

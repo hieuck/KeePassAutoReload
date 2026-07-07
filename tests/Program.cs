@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.Threading.Tasks;
 using KeePassAutoReload;
 
 internal static class Program
@@ -11,7 +13,9 @@ internal static class Program
         AboutTextIncludesVersionAndCurrentSettings();
         UpdateCheckerDetectsNewerSemanticVersions();
         UpdateCheckerIgnoresSameOrInvalidVersions();
+        UpdateCheckerHandlesSemanticVersionMetadata();
         UpdateCheckerSelectsNewestSemanticTag();
+        UpdateCheckerFetchesLatestReleaseFromInjectedClientAsync().Wait();
         return 0;
     }
 
@@ -52,10 +56,25 @@ internal static class Program
         AssertFalse(UpdateChecker.IsNewerVersion("1.0.1", "latest"), "non-version tag should not update");
     }
 
+    private static void UpdateCheckerHandlesSemanticVersionMetadata()
+    {
+        AssertTrue(UpdateChecker.IsNewerVersion("1.0.0+c83c367", "v1.0.1"), "semver metadata in current version should be ignored");
+        AssertFalse(UpdateChecker.IsNewerVersion("1.0.1+abc123", "1.0.1"), "same version with different metadata should not update");
+    }
+
     private static void UpdateCheckerSelectsNewestSemanticTag()
     {
         string tag = UpdateChecker.GetNewestVersionTag(new string[] { "latest", "v1.0.1", "v1.1.0", "draft" });
         AssertEqual("v1.1.0", tag, "newest semantic release tag should be selected");
+    }
+
+    private static async Task UpdateCheckerFetchesLatestReleaseFromInjectedClientAsync()
+    {
+        string json = "[{\"tag_name\":\"v1.0.1\"},{\"tag_name\":\"v1.1.0\"}]";
+        FakeUpdateClient client = new FakeUpdateClient { Response = json };
+        UpdateInfo info = await UpdateChecker.CheckLatestAsync(client);
+        AssertEqual("v1.1.0", info.LatestVersion, "latest version should be parsed from injected client response");
+        AssertTrue(info.IsUpdateAvailable, "an update should be available when injected response has newer version");
     }
 
     private static void AssertTrue(bool value, string message)
@@ -81,6 +100,28 @@ internal static class Program
         if (!object.Equals(expected, actual))
         {
             throw new Exception(message + ". Expected: " + expected + ", actual: " + actual);
+        }
+    }
+
+    private sealed class FakeUpdateClient : IUpdateClient
+    {
+        public string Response { get; set; }
+        public byte[] FileData { get; set; }
+        public string LastDownloadDestination { get; private set; }
+
+        public Task<string> DownloadStringAsync(string url)
+        {
+            return Task.FromResult(Response ?? string.Empty);
+        }
+
+        public Task DownloadFileAsync(string url, string destinationPath)
+        {
+            LastDownloadDestination = destinationPath;
+            if (FileData != null)
+            {
+                File.WriteAllBytes(destinationPath, FileData);
+            }
+            return Task.CompletedTask;
         }
     }
 }
