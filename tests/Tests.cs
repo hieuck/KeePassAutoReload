@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Security.Authentication;
@@ -528,6 +529,109 @@ namespace KeePassAutoReload.Tests
             finally
             {
                 if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+            }
+        }
+    }
+
+    public class AssetVerifierTests
+    {
+        [Fact]
+        public void ComputeSha256_ReturnsHexHashOfFileContents()
+        {
+            string tempFile = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllText(tempFile, "hello world");
+                string hash = AssetVerifier.ComputeSha256(tempFile);
+                Assert.Equal("B94D27B9934D3E08A52E52D7DA7DABFAC484EFE37A5380EE9088F7ACE2EFCDE9", hash.ToUpperInvariant());
+            }
+            finally
+            {
+                File.Delete(tempFile);
+            }
+        }
+
+        [Fact]
+        public void ComputeSha256_ThrowsWhenFileDoesNotExist()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            Directory.CreateDirectory(tempDir);
+            string tempFile = Path.Combine(tempDir, "missing.dll");
+            Assert.Throws<FileNotFoundException>(() => AssetVerifier.ComputeSha256(tempFile));
+        }
+
+        [Fact]
+        public void ParseChecksums_ReturnsExpectedEntries()
+        {
+            string checksums =
+                "abc123  KeePassAutoReload.dll\n" +
+                "def456  KeePassAutoReload.Updater.exe\n";
+
+            Dictionary<string, string> entries = AssetVerifier.ParseChecksums(checksums);
+
+            Assert.Equal(2, entries.Count);
+            Assert.Equal("abc123", entries["KeePassAutoReload.dll"]);
+            Assert.Equal("def456", entries["KeePassAutoReload.Updater.exe"]);
+        }
+
+        [Fact]
+        public void ParseChecksums_IgnoresBlankLinesAndMalformedEntries()
+        {
+            string checksums =
+                "abc123  KeePassAutoReload.dll\n" +
+                "\n" +
+                "badline\n" +
+                "def456  KeePassAutoReload.Updater.exe\n";
+
+            Dictionary<string, string> entries = AssetVerifier.ParseChecksums(checksums);
+
+            Assert.Equal(2, entries.Count);
+        }
+
+        [Fact]
+        public void VerifyFile_ReturnsTrueWhenHashMatches()
+        {
+            string tempFile = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllText(tempFile, "hello world");
+                string hash = AssetVerifier.ComputeSha256(tempFile);
+                Assert.True(AssetVerifier.VerifyFile(tempFile, hash));
+            }
+            finally
+            {
+                File.Delete(tempFile);
+            }
+        }
+
+        [Fact]
+        public void VerifyFile_ReturnsFalseWhenHashDoesNotMatch()
+        {
+            string tempFile = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllText(tempFile, "hello world");
+                Assert.False(AssetVerifier.VerifyFile(tempFile, "0000000000000000000000000000000000000000000000000000000000000000"));
+            }
+            finally
+            {
+                File.Delete(tempFile);
+            }
+        }
+
+        [Fact]
+        public void VerifyFile_IsCaseInsensitive()
+        {
+            string tempFile = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllText(tempFile, "hello world");
+                string hash = AssetVerifier.ComputeSha256(tempFile).ToLowerInvariant();
+                Assert.True(AssetVerifier.VerifyFile(tempFile, hash.ToUpperInvariant()));
+            }
+            finally
+            {
+                File.Delete(tempFile);
             }
         }
     }

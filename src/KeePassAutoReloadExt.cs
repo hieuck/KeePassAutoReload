@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
@@ -179,16 +180,37 @@ namespace KeePassAutoReload
             {
                 string targetPath = GetPluginPackagePath();
                 string tempPath = targetPath + ".download";
+                string checksumPath = targetPath + ".sha256";
 
                 using (HttpUpdateClient client = new HttpUpdateClient())
                 {
                     await client.DownloadFileAsync(info.AssetUrl, tempPath);
+                    if (!string.IsNullOrWhiteSpace(info.ChecksumUrl))
+                    {
+                        try
+                        {
+                            await client.DownloadFileAsync(info.ChecksumUrl, checksumPath);
+                        }
+                        catch (Exception checksumEx)
+                        {
+                            File.Delete(tempPath);
+                            throw new InvalidOperationException("Failed to download release checksums: " + checksumEx.Message, checksumEx);
+                        }
+                    }
+                }
+
+                if (File.Exists(checksumPath) && !VerifyDownloadedAsset(tempPath, checksumPath, Path.GetFileName(info.AssetUrl)))
+                {
+                    File.Delete(tempPath);
+                    File.Delete(checksumPath);
+                    throw new InvalidOperationException("Downloaded asset failed hash verification.");
                 }
 
                 try
                 {
                     File.Copy(tempPath, targetPath, true);
                     File.Delete(tempPath);
+                    if (File.Exists(checksumPath)) File.Delete(checksumPath);
 
                     ShowOnUi(delegate
                     {
@@ -202,6 +224,7 @@ namespace KeePassAutoReload
                     string pendingPath = targetPath + ".new";
                     File.Copy(tempPath, pendingPath, true);
                     File.Delete(tempPath);
+                    if (File.Exists(checksumPath)) File.Delete(checksumPath);
 
                     bool updaterScheduled = TryScheduleUpdater(targetPath, pendingPath);
 
@@ -232,6 +255,17 @@ namespace KeePassAutoReload
                         ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 });
             }
+        }
+
+        private static bool VerifyDownloadedAsset(string assetPath, string checksumPath, string assetFileName)
+        {
+            if (!File.Exists(checksumPath)) return true;
+
+            string checksumsText = File.ReadAllText(checksumPath);
+            Dictionary<string, string> checksums = AssetVerifier.ParseChecksums(checksumsText);
+            if (!checksums.ContainsKey(assetFileName)) return true;
+
+            return AssetVerifier.VerifyFile(assetPath, checksums[assetFileName]);
         }
 
         private static string GetPluginPackagePath()
