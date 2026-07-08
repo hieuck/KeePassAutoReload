@@ -35,6 +35,16 @@ namespace KeePassAutoReload
             if (string.IsNullOrWhiteSpace(newPluginPath)) throw new ArgumentException("newPluginPath");
             if (string.IsNullOrWhiteSpace(updaterExePath)) throw new ArgumentException("updaterExePath");
             if (starter == null) throw new ArgumentNullException("starter");
+            if (keepassProcessId < 0) throw new ArgumentOutOfRangeException("keepassProcessId");
+
+            if (!pluginPath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("pluginPath must end with .dll", "pluginPath");
+            if (!newPluginPath.EndsWith(".new", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("newPluginPath must end with .new", "newPluginPath");
+            if (!updaterExePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("updaterExePath must end with .exe", "updaterExePath");
+            if (!string.IsNullOrWhiteSpace(keepassExecutablePath) && !keepassExecutablePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("keepassExecutablePath must end with .exe", "keepassExecutablePath");
 
             if (!File.Exists(newPluginPath)) return false;
             if (!File.Exists(updaterExePath)) return false;
