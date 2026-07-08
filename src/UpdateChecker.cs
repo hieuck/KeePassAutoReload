@@ -4,8 +4,9 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Json;
 using System.Security.Authentication;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -18,6 +19,13 @@ namespace KeePassAutoReload
         public string AssetUrl;
         public string ChecksumUrl;
         public bool IsUpdateAvailable;
+    }
+
+    [DataContract]
+    internal sealed class GitHubRelease
+    {
+        [DataMember]
+        public string tag_name { get; set; }
     }
 
     internal interface IUpdateClient
@@ -110,7 +118,7 @@ namespace KeePassAutoReload
 
             cancellationToken.ThrowIfCancellationRequested();
             string json = await client.DownloadStringAsync(ReleasesApiUrl, cancellationToken);
-            string tagName = GetNewestVersionTag(ExtractJsonStrings(json, "tag_name").ToArray());
+            string tagName = GetNewestVersionTag(ExtractVersionTags(json));
 
             UpdateInfo info = new UpdateInfo();
             info.LatestVersion = tagName;
@@ -188,18 +196,33 @@ namespace KeePassAutoReload
             return "https://github.com/hieuck/KeePassAutoReload/releases/download/" + tagName + "/SHA256SUMS.txt";
         }
 
-        private static List<string> ExtractJsonStrings(string json, string name)
+        private static string[] ExtractVersionTags(string json)
         {
-            List<string> values = new List<string>();
-            if (string.IsNullOrEmpty(json)) return values;
+            if (string.IsNullOrWhiteSpace(json)) return new string[0];
 
-            MatchCollection matches = Regex.Matches(json, "\"" + Regex.Escape(name) + "\"\\s*:\\s*\"(?<value>(?:\\\\.|[^\"])*)\"");
-            foreach (Match match in matches)
+            try
             {
-                if (match.Success) values.Add(Regex.Unescape(match.Groups["value"].Value));
-            }
+                using (MemoryStream stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json)))
+                {
+                    DataContractJsonSerializer serializer = new DataContractJsonSerializer(typeof(List<GitHubRelease>));
+                    List<GitHubRelease> releases = (List<GitHubRelease>)serializer.ReadObject(stream);
+                    if (releases == null) return new string[0];
 
-            return values;
+                    List<string> tags = new List<string>();
+                    foreach (GitHubRelease release in releases)
+                    {
+                        if (release != null && !string.IsNullOrWhiteSpace(release.tag_name))
+                        {
+                            tags.Add(release.tag_name);
+                        }
+                    }
+                    return tags.ToArray();
+                }
+            }
+            catch
+            {
+                return new string[0];
+            }
         }
     }
 }
