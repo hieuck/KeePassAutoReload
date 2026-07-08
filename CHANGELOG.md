@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-07-08
+
+### Added
+- Added PLGX package support: CI now builds and releases `KeePassAutoReload.plgx` alongside the DLL.
+- Plugin now detects whether the installed package is `.dll` or `.plgx` and downloads the matching update asset.
+
+### Fixed
+- Fixed CI release upload failing when PLGX creation produced an empty file.
+
 ## [1.2.1] - 2026-07-07
 
 ### Added
