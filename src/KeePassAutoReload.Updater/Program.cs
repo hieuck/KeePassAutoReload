@@ -7,6 +7,11 @@ namespace KeePassAutoReload.Updater
 {
     internal static class Program
     {
+        internal const int ExitSuccess = 0;
+        internal const int ExitInvalidArguments = 1;
+        internal const int ExitUpdateFailed = 2;
+        internal const int ExitRestartFailed = 3;
+
         internal static int Main(string[] args)
         {
             int processId = 0;
@@ -22,7 +27,11 @@ namespace KeePassAutoReload.Updater
 
                 if (string.Equals(current, "--process-id", StringComparison.OrdinalIgnoreCase))
                 {
-                    int.TryParse(value, out processId);
+                    if (!int.TryParse(value, out processId) || processId < 0)
+                    {
+                        Console.Error.WriteLine("Invalid process ID.");
+                        return ExitInvalidArguments;
+                    }
                 }
                 else if (string.Equals(current, "--source", StringComparison.OrdinalIgnoreCase))
                 {
@@ -41,7 +50,25 @@ namespace KeePassAutoReload.Updater
             if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(destination))
             {
                 Console.Error.WriteLine("Usage: KeePassAutoReload.Updater --source <path> --destination <path> [--process-id <pid>] [--restart <path>]");
-                return 1;
+                return ExitInvalidArguments;
+            }
+
+            if (!source.EndsWith(".new", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine("Source file must have a .new extension.");
+                return ExitInvalidArguments;
+            }
+
+            if (!destination.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine("Destination file must have a .dll extension.");
+                return ExitInvalidArguments;
+            }
+
+            if (!File.Exists(source))
+            {
+                Console.Error.WriteLine("Source file does not exist: " + source);
+                return ExitInvalidArguments;
             }
 
             try
@@ -63,20 +90,30 @@ namespace KeePassAutoReload.Updater
 
                 Thread.Sleep(1000);
 
+                string destinationDirectory = Path.GetDirectoryName(destination);
+                if (!string.IsNullOrWhiteSpace(destinationDirectory) && !Directory.Exists(destinationDirectory))
+                {
+                    Directory.CreateDirectory(destinationDirectory);
+                }
+
                 File.Copy(source, destination, overwrite: true);
                 File.Delete(source);
 
-                if (!string.IsNullOrWhiteSpace(restart) && File.Exists(restart))
+                if (string.IsNullOrWhiteSpace(restart)) return ExitSuccess;
+
+                if (!File.Exists(restart))
                 {
-                    Process.Start(restart);
+                    Console.Error.WriteLine("KeePass executable not found: " + restart);
+                    return ExitRestartFailed;
                 }
 
-                return 0;
+                Process.Start(restart);
+                return ExitSuccess;
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine("Update failed: " + ex.Message);
-                return 2;
+                return ExitUpdateFailed;
             }
         }
     }

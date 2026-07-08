@@ -525,6 +525,46 @@ namespace KeePassAutoReload.Tests
         }
 
         [Fact]
+        public void TryScheduleUpdate_ThrowsWhenPluginPathDoesNotEndWithDll()
+        {
+            FakeProcessStarter starter = new FakeProcessStarter();
+            Assert.Throws<ArgumentException>(() =>
+                PluginUpdater.TryScheduleUpdate(@"C:\plugin.txt", @"C:\new.dll.new", @"C:\updater.exe", 1234, @"C:\KeePass.exe", starter));
+        }
+
+        [Fact]
+        public void TryScheduleUpdate_ThrowsWhenNewPluginPathDoesNotEndWithNew()
+        {
+            FakeProcessStarter starter = new FakeProcessStarter();
+            Assert.Throws<ArgumentException>(() =>
+                PluginUpdater.TryScheduleUpdate(@"C:\plugin.dll", @"C:\new.dll", @"C:\updater.exe", 1234, @"C:\KeePass.exe", starter));
+        }
+
+        [Fact]
+        public void TryScheduleUpdate_ThrowsWhenUpdaterPathDoesNotEndWithExe()
+        {
+            FakeProcessStarter starter = new FakeProcessStarter();
+            Assert.Throws<ArgumentException>(() =>
+                PluginUpdater.TryScheduleUpdate(@"C:\plugin.dll", @"C:\new.dll.new", @"C:\updater.bat", 1234, @"C:\KeePass.exe", starter));
+        }
+
+        [Fact]
+        public void TryScheduleUpdate_ThrowsWhenKeePassExecutablePathHasInvalidExtension()
+        {
+            FakeProcessStarter starter = new FakeProcessStarter();
+            Assert.Throws<ArgumentException>(() =>
+                PluginUpdater.TryScheduleUpdate(@"C:\plugin.dll", @"C:\new.dll.new", @"C:\updater.exe", 1234, @"C:\KeePass.txt", starter));
+        }
+
+        [Fact]
+        public void TryScheduleUpdate_ThrowsWhenProcessIdIsNegative()
+        {
+            FakeProcessStarter starter = new FakeProcessStarter();
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                PluginUpdater.TryScheduleUpdate(@"C:\plugin.dll", @"C:\new.dll.new", @"C:\updater.exe", -1, @"C:\KeePass.exe", starter));
+        }
+
+        [Fact]
         public void TryScheduleUpdate_ThrowsWhenStarterIsNull()
         {
             Assert.Throws<ArgumentNullException>(() =>
