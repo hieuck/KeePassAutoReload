@@ -76,8 +76,23 @@ jobs:
             "$dist/KeePassAutoReload.Updater.exe" -Force
           Copy-Item "README.md" "$dist/README.md" -Force
 
+          $dllHash = (Get-FileHash "$dist/KeePassAutoReload.dll" -Algorithm SHA256).Hash.ToLower()
+          $updaterHash = (Get-FileHash "$dist/KeePassAutoReload.Updater.exe" -Algorithm SHA256).Hash.ToLower()
+          $zipHash = $null
+
           Compress-Archive -Path "$dist/KeePassAutoReload.dll", "$dist/KeePassAutoReload.Updater.exe", "$dist/README.md" `
             -DestinationPath "$dist/KeePassAutoReload.zip" -Force
+          $zipHash = (Get-FileHash "$dist/KeePassAutoReload.zip" -Algorithm SHA256).Hash.ToLower()
+
+          $checksums = @(
+            "$dllHash  KeePassAutoReload.dll",
+            "$updaterHash  KeePassAutoReload.Updater.exe",
+            "$zipHash  KeePassAutoReload.zip"
+          )
+          $checksums | Out-File "$dist/SHA256SUMS.txt" -Encoding utf8
+
+          Write-Host "SHA256SUMS.txt contents:"
+          Get-Content "$dist/SHA256SUMS.txt"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
@@ -100,3 +115,4 @@ jobs:
             dist/KeePassAutoReload.dll
             dist/KeePassAutoReload.Updater.exe
             dist/KeePassAutoReload.zip
+            dist/SHA256SUMS.txt

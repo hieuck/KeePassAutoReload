@@ -16,6 +16,7 @@ namespace KeePassAutoReload
         public string LatestVersion;
         public string ReleaseUrl;
         public string AssetUrl;
+        public string ChecksumUrl;
         public bool IsUpdateAvailable;
     }
 
@@ -115,6 +116,7 @@ namespace KeePassAutoReload
             info.LatestVersion = tagName;
             info.ReleaseUrl = BuildReleaseUrl(tagName);
             info.AssetUrl = BuildAssetUrl(tagName, format);
+            info.ChecksumUrl = BuildChecksumUrl(tagName);
             info.IsUpdateAvailable = IsNewerVersion(GetCurrentVersion(), tagName);
             return info;
         }
@@ -179,6 +181,12 @@ namespace KeePassAutoReload
         {
             if (string.IsNullOrEmpty(tagName)) return ReleasesUrl;
             return ReleasesUrl + "/tag/" + tagName;
+        }
+
+        private static string BuildChecksumUrl(string tagName)
+        {
+            if (string.IsNullOrEmpty(tagName)) return ReleasesUrl;
+            return "https://github.com/hieuck/KeePassAutoReload/releases/download/" + tagName + "/SHA256SUMS.txt";
         }
 
         private static List<string> ExtractJsonStrings(string json, string name)
