@@ -28,7 +28,15 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Cache KeePass
+        id: cache-keepass
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\KeePass
+          key: keepass-2.61.1-${{ runner.os }}
+
       - name: Download KeePass
+        if: steps.cache-keepass.outputs.cache-hit != 'true'
         shell: powershell
         run: |
           $keepassDir = Join-Path $env:RUNNER_TEMP "KeePass"
@@ -47,6 +55,13 @@ jobs:
             throw "KeePass.exe was not extracted."
           }
 
+      - name: Export KeePass directory
+        shell: powershell
+        run: |
+          $keepassDir = Join-Path $env:RUNNER_TEMP "KeePass"
+          if (!(Test-Path (Join-Path $keepassDir "KeePass.exe"))) {
+            throw "KeePass.exe is not available."
+          }
           "KEEPASS_DIR=$keepassDir" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Run tests
