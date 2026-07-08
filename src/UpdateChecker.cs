@@ -100,6 +100,11 @@ namespace KeePassAutoReload
 
         public static async Task<UpdateInfo> CheckLatestAsync(IUpdateClient client, CancellationToken cancellationToken = default)
         {
+            return await CheckLatestAsync(client, PluginPackageFormat.Dll, cancellationToken);
+        }
+
+        public static async Task<UpdateInfo> CheckLatestAsync(IUpdateClient client, PluginPackageFormat format, CancellationToken cancellationToken = default)
+        {
             if (client == null) throw new ArgumentNullException("client");
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -109,16 +114,21 @@ namespace KeePassAutoReload
             UpdateInfo info = new UpdateInfo();
             info.LatestVersion = tagName;
             info.ReleaseUrl = BuildReleaseUrl(tagName);
-            info.AssetUrl = BuildDllAssetUrl(tagName);
+            info.AssetUrl = BuildAssetUrl(tagName, format);
             info.IsUpdateAvailable = IsNewerVersion(GetCurrentVersion(), tagName);
             return info;
         }
 
         public static async Task<UpdateInfo> CheckLatestAsync(CancellationToken cancellationToken = default)
         {
+            return await CheckLatestAsync(PluginPackageFormat.Dll, cancellationToken);
+        }
+
+        public static async Task<UpdateInfo> CheckLatestAsync(PluginPackageFormat format, CancellationToken cancellationToken = default)
+        {
             using (HttpUpdateClient client = new HttpUpdateClient())
             {
-                return await CheckLatestAsync(client, cancellationToken);
+                return await CheckLatestAsync(client, format, cancellationToken);
             }
         }
 
@@ -158,10 +168,11 @@ namespace KeePassAutoReload
             return Version.TryParse(normalized, out version);
         }
 
-        private static string BuildDllAssetUrl(string tagName)
+        private static string BuildAssetUrl(string tagName, PluginPackageFormat format)
         {
             if (string.IsNullOrEmpty(tagName)) return ReleasesUrl;
-            return "https://github.com/hieuck/KeePassAutoReload/releases/download/" + tagName + "/KeePassAutoReload.dll";
+            string extension = format == PluginPackageFormat.Plgx ? ".plgx" : ".dll";
+            return "https://github.com/hieuck/KeePassAutoReload/releases/download/" + tagName + "/KeePassAutoReload" + extension;
         }
 
         private static string BuildReleaseUrl(string tagName)
