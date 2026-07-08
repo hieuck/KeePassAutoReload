@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-07-07
+
+### Added
+- Added `KeePassAutoReload.Updater.exe` helper to replace the locked plugin DLL after KeePass exits.
+- Added `PluginUpdater` to build updater arguments and schedule the update.
+
+### Fixed
+- Fixed in-app plugin updates failing with "being used by another process" by scheduling the external updater when the active DLL is locked.
+
 ## [1.2.0] - 2026-07-07
 
 ### Added
