@@ -29,6 +29,7 @@
   <ItemGroup>
     <Compile Include="AssetVerifier.cs" />
     <Compile Include="AutoSyncPolicy.cs" />
+    <Compile Include="HttpRetryPolicy.cs" />
     <Compile Include="KeePassAutoReloadExt.cs" />
     <Compile Include="PluginAboutInfo.cs" />
     <Compile Include="PluginPathResolver.cs" />

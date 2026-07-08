@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Security.Authentication;
 using System.Threading;
 using System.Threading.Tasks;
@@ -73,6 +74,112 @@ namespace KeePassAutoReload.Tests
             Assert.Contains("Version: 1.2.3.4", text);
             Assert.Contains("Interval: 30 seconds", text);
             Assert.Contains("Skip modified databases: Yes", text);
+        }
+    }
+
+    public class HttpRetryPolicyTests
+    {
+        private static Task<HttpResponseMessage> SuccessResponse(HttpStatusCode statusCode)
+        {
+            return Task.FromResult(new HttpResponseMessage(statusCode));
+        }
+
+        [Fact]
+        public async Task ExecuteAsync_ReturnsResponseOnFirstSuccess()
+        {
+            HttpResponseMessage response = await HttpRetryPolicy.ExecuteAsync(
+                () => SuccessResponse(HttpStatusCode.OK),
+                3);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task ExecuteAsync_RetriesOnServerErrorThenSucceeds()
+        {
+            int callCount = 0;
+            HttpResponseMessage response = await HttpRetryPolicy.ExecuteAsync(() =>
+            {
+                callCount++;
+                if (callCount < 3) return SuccessResponse(HttpStatusCode.ServiceUnavailable);
+                return SuccessResponse(HttpStatusCode.OK);
+            }, 3);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(3, callCount);
+        }
+
+        [Fact]
+        public async Task ExecuteAsync_DoesNotRetryOnClientError()
+        {
+            int callCount = 0;
+            HttpResponseMessage response = await HttpRetryPolicy.ExecuteAsync(() =>
+            {
+                callCount++;
+                return SuccessResponse(HttpStatusCode.NotFound);
+            }, 3);
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            Assert.Equal(1, callCount);
+        }
+
+        [Fact]
+        public async Task ExecuteAsync_ThrowsAfterMaxRetriesOnServerError()
+        {
+            int callCount = 0;
+            await Assert.ThrowsAsync<HttpRequestException>(() => HttpRetryPolicy.ExecuteAsync(() =>
+            {
+                callCount++;
+                return SuccessResponse(HttpStatusCode.InternalServerError);
+            }, 2));
+
+            Assert.Equal(3, callCount);
+        }
+
+        [Fact]
+        public async Task ExecuteAsync_RetriesOnTransientExceptionThenSucceeds()
+        {
+            int callCount = 0;
+            HttpResponseMessage response = await HttpRetryPolicy.ExecuteAsync(() =>
+            {
+                callCount++;
+                if (callCount < 2) throw new HttpRequestException("transient");
+                return SuccessResponse(HttpStatusCode.OK);
+            }, 3);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(2, callCount);
+        }
+
+        [Fact]
+        public async Task ExecuteAsync_ThrowsOnCancellationWithoutRetry()
+        {
+            int callCount = 0;
+            using (CancellationTokenSource cts = new CancellationTokenSource())
+            {
+                cts.Cancel();
+                await Assert.ThrowsAsync<OperationCanceledException>(() => HttpRetryPolicy.ExecuteAsync(() =>
+                {
+                    callCount++;
+                    return SuccessResponse(HttpStatusCode.OK);
+                }, 3, cts.Token));
+            }
+
+            Assert.Equal(0, callCount);
+        }
+
+        [Fact]
+        public void ExecuteAsync_ThrowsWhenOperationIsNull()
+        {
+            Assert.Throws<ArgumentNullException>(() =>
+                HttpRetryPolicy.ExecuteAsync(null, 3).GetAwaiter().GetResult());
+        }
+
+        [Fact]
+        public void ExecuteAsync_ThrowsWhenMaxRetriesIsNegative()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                HttpRetryPolicy.ExecuteAsync(() => SuccessResponse(HttpStatusCode.OK), -1).GetAwaiter().GetResult());
         }
     }
 

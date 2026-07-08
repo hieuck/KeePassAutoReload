@@ -54,7 +54,10 @@ namespace KeePassAutoReload
 
         public async Task<string> DownloadStringAsync(string url, CancellationToken cancellationToken = default)
         {
-            using (HttpResponseMessage response = await _client.GetAsync(url, cancellationToken))
+            using (HttpResponseMessage response = await HttpRetryPolicy.ExecuteAsync(
+                () => _client.GetAsync(url, cancellationToken),
+                HttpRetryPolicy.DefaultMaxRetries,
+                cancellationToken))
             {
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadAsStringAsync();
@@ -63,7 +66,10 @@ namespace KeePassAutoReload
 
         public async Task DownloadFileAsync(string url, string destinationPath, CancellationToken cancellationToken = default)
         {
-            using (HttpResponseMessage response = await _client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken))
+            using (HttpResponseMessage response = await HttpRetryPolicy.ExecuteAsync(
+                () => _client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken),
+                HttpRetryPolicy.DefaultMaxRetries,
+                cancellationToken))
             {
                 response.EnsureSuccessStatusCode();
                 byte[] data = await response.Content.ReadAsByteArrayAsync();
