@@ -103,12 +103,12 @@ jobs:
           Get-ChildItem $plgxSrc -Filter "*.plgx" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
 
           $srcPlgx = Join-Path $env:GITHUB_WORKSPACE "plgx-src.plgx"
+          $plgxPath = "$env:GITHUB_WORKSPACE\KeePassAutoReload.plgx"
           if (Test-Path $srcPlgx) {
-            Move-Item $srcPlgx "$env:GITHUB_WORKSPACE\KeePassAutoReload.plgx" -Force
+            Move-Item $srcPlgx $plgxPath -Force
             Write-Host "PLGX package created: KeePassAutoReload.plgx"
           } else {
             Write-Warning "KeePass PLGX creation failed; skipping PLGX asset for this build."
-            New-Item -ItemType File -Path "$env:GITHUB_WORKSPACE\KeePassAutoReload.plgx" -Value "" -Force | Out-Null
           }
 
       - name: Prepare release assets
@@ -120,11 +120,24 @@ jobs:
           Copy-Item "bin/Release/KeePassAutoReload.dll" "$dist/KeePassAutoReload.dll" -Force
           Copy-Item "src/KeePassAutoReload.Updater/bin/Release/KeePassAutoReload.Updater.exe" `
             "$dist/KeePassAutoReload.Updater.exe" -Force
-          Copy-Item "KeePassAutoReload.plgx" "$dist/KeePassAutoReload.plgx" -Force
           Copy-Item "README.md" "$dist/README.md" -Force
 
-          Compress-Archive -Path "$dist/KeePassAutoReload.dll", "$dist/KeePassAutoReload.Updater.exe", "$dist/KeePassAutoReload.plgx", "$dist/README.md" `
-            -DestinationPath "$dist/KeePassAutoReload.zip" -Force
+          $zipPaths = @("$dist/KeePassAutoReload.dll", "$dist/KeePassAutoReload.Updater.exe", "$dist/README.md")
+          $plgxPath = "$env:GITHUB_WORKSPACE\KeePassAutoReload.plgx"
+          if (Test-Path $plgxPath) {
+            $plgxSize = (Get-Item $plgxPath).Length
+            if ($plgxSize -gt 0) {
+              Copy-Item $plgxPath "$dist/KeePassAutoReload.plgx" -Force
+              $zipPaths += "$dist/KeePassAutoReload.plgx"
+              Write-Host "Including PLGX in release assets ($plgxSize bytes)."
+            } else {
+              Write-Warning "PLGX file is empty; excluding from release assets."
+            }
+          } else {
+            Write-Warning "PLGX file not found; excluding from release assets."
+          }
+
+          Compress-Archive -Path $zipPaths -DestinationPath "$dist/KeePassAutoReload.zip" -Force
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
@@ -146,5 +159,4 @@ jobs:
           files: |
             dist/KeePassAutoReload.dll
             dist/KeePassAutoReload.Updater.exe
-            dist/KeePassAutoReload.plgx
             dist/KeePassAutoReload.zip
