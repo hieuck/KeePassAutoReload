@@ -158,6 +158,22 @@ namespace KeePassAutoReload.Tests
         }
 
         [Fact]
+        public async Task ReturnsDllAssetUrlByDefault()
+        {
+            FakeUpdateClient client = new FakeUpdateClient { Response = "[{\"tag_name\":\"v1.0.1\"}]" };
+            UpdateInfo info = await UpdateChecker.CheckLatestAsync(client);
+            Assert.EndsWith("KeePassAutoReload.dll", info.AssetUrl);
+        }
+
+        [Fact]
+        public async Task ReturnsPlgxAssetUrlWhenFormatIsPlgx()
+        {
+            FakeUpdateClient client = new FakeUpdateClient { Response = "[{\"tag_name\":\"v1.0.1\"}]" };
+            UpdateInfo info = await UpdateChecker.CheckLatestAsync(client, PluginPackageFormat.Plgx);
+            Assert.EndsWith("KeePassAutoReload.plgx", info.AssetUrl);
+        }
+
+        [Fact]
         public async Task ThrowsOperationCanceledExceptionWhenAlreadyCanceled()
         {
             using (CancellationTokenSource cts = new CancellationTokenSource())
@@ -284,6 +300,71 @@ namespace KeePassAutoReload.Tests
         public void ThrowsWhenKeePassDirectoryIsNullOrWhitespace(string keepassDirectory)
         {
             Assert.Throws<ArgumentException>(() => PluginPathResolver.ResolvePluginPackagePath(null, keepassDirectory));
+        }
+
+        [Fact]
+        public void ResolveInstalledFormat_DetectsPlgxWhenPlgxFileExists()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            try
+            {
+                string pluginsDir = Path.Combine(tempDir, "Plugins");
+                Directory.CreateDirectory(pluginsDir);
+                File.WriteAllText(Path.Combine(pluginsDir, "KeePassAutoReload.plgx"), "plgx");
+                File.WriteAllText(Path.Combine(pluginsDir, "KeePassAutoReload.dll"), "dll");
+
+                PluginPackageFormat format = PluginPathResolver.ResolveInstalledFormat(tempDir);
+                Assert.Equal(PluginPackageFormat.Plgx, format);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+            }
+        }
+
+        [Fact]
+        public void ResolveInstalledFormat_DefaultsToDllWhenOnlyDllExists()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            try
+            {
+                string pluginsDir = Path.Combine(tempDir, "Plugins");
+                Directory.CreateDirectory(pluginsDir);
+                File.WriteAllText(Path.Combine(pluginsDir, "KeePassAutoReload.dll"), "dll");
+
+                PluginPackageFormat format = PluginPathResolver.ResolveInstalledFormat(tempDir);
+                Assert.Equal(PluginPackageFormat.Dll, format);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+            }
+        }
+
+        [Fact]
+        public void ResolveInstalledFormat_DefaultsToDllWhenNeitherExists()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(tempDir, "Plugins"));
+
+                PluginPackageFormat format = PluginPathResolver.ResolveInstalledFormat(tempDir);
+                Assert.Equal(PluginPackageFormat.Dll, format);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+            }
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public void ResolveInstalledFormat_ThrowsWhenKeePassDirectoryIsInvalid(string keepassDirectory)
+        {
+            Assert.Throws<ArgumentException>(() => PluginPathResolver.ResolveInstalledFormat(keepassDirectory));
         }
     }
 

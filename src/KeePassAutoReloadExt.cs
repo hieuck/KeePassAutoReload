@@ -25,10 +25,12 @@ namespace KeePassAutoReload
         private ToolStripMenuItem m_skipModifiedItem;
         private ToolStripMenuItem m_intervalItem;
         private bool m_syncInProgress;
+        private PluginPackageFormat m_packageFormat;
 
         public override bool Initialize(IPluginHost host)
         {
             m_host = host;
+            m_packageFormat = ResolveInstalledFormat();
             m_timer = new System.Windows.Forms.Timer();
             m_timer.Tick += OnTimerTick;
             ConfigureTimer();
@@ -117,7 +119,7 @@ namespace KeePassAutoReload
         {
             try
             {
-                UpdateInfo info = await UpdateChecker.CheckLatestAsync();
+                UpdateInfo info = await UpdateChecker.CheckLatestAsync(m_packageFormat);
 
                 if (info == null || !info.IsUpdateAvailable)
                 {
@@ -237,6 +239,18 @@ namespace KeePassAutoReload
             return PluginPathResolver.ResolvePluginPackagePath(
                 typeof(KeePassAutoReloadExt).Assembly.Location,
                 Path.GetDirectoryName(Application.ExecutablePath));
+        }
+
+        private PluginPackageFormat ResolveInstalledFormat()
+        {
+            try
+            {
+                return PluginPathResolver.ResolveInstalledFormat(Path.GetDirectoryName(Application.ExecutablePath));
+            }
+            catch
+            {
+                return PluginPackageFormat.Dll;
+            }
         }
 
         private bool TryScheduleUpdater(string pluginPath, string newPluginPath)
