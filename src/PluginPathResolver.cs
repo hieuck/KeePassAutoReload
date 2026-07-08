@@ -5,8 +5,7 @@ namespace KeePassAutoReload
 {
     internal enum PluginPackageFormat
     {
-        Dll,
-        Plgx
+        Dll
     }
 
     internal static class PluginPathResolver
@@ -36,13 +35,7 @@ namespace KeePassAutoReload
             }
 
             string pluginsDir = Path.Combine(keepassExecutableDirectory, "Plugins");
-            string plgxPath = Path.Combine(pluginsDir, "KeePassAutoReload.plgx");
             string dllPath = Path.Combine(pluginsDir, "KeePassAutoReload.dll");
-
-            if (File.Exists(plgxPath))
-            {
-                return PluginPackageFormat.Plgx;
-            }
 
             return File.Exists(dllPath) ? PluginPackageFormat.Dll : PluginPackageFormat.Dll;
         }

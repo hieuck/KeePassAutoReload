@@ -5,5 +5,4 @@ tests/obj/
 .worktrees/
 *.user
 *.suo
-*.plgx
 *.dll

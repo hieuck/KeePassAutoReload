@@ -171,8 +171,7 @@ namespace KeePassAutoReload
         private static string BuildAssetUrl(string tagName, PluginPackageFormat format)
         {
             if (string.IsNullOrEmpty(tagName)) return ReleasesUrl;
-            string extension = format == PluginPackageFormat.Plgx ? ".plgx" : ".dll";
-            return "https://github.com/hieuck/KeePassAutoReload/releases/download/" + tagName + "/KeePassAutoReload" + extension;
+            return "https://github.com/hieuck/KeePassAutoReload/releases/download/" + tagName + "/KeePassAutoReload.dll";
         }
 
         private static string BuildReleaseUrl(string tagName)
