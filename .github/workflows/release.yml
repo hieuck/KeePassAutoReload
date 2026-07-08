@@ -65,52 +65,6 @@ jobs:
             /p:Configuration=Release `
             /p:Platform="AnyCPU"
 
-      - name: Create PLGX package
-        shell: powershell
-        run: |
-          $keepassDir = $env:KEEPASS_DIR
-          $keepassExe = Join-Path $keepassDir "KeePass.exe"
-          $plgxSrc = Join-Path $env:GITHUB_WORKSPACE "plgx-src"
-
-          New-Item -ItemType Directory -Path $plgxSrc -Force | Out-Null
-
-          # Copy plugin source files only (exclude the updater project)
-          Copy-Item "$env:GITHUB_WORKSPACE\src\*.cs" $plgxSrc\ -Force
-          Copy-Item "$env:GITHUB_WORKSPACE\src\Properties" $plgxSrc\ -Recurse -Force
-
-          Write-Host "Creating PLGX package with KeePass (with 60s timeout)..."
-          $job = Start-Job {
-            param($exe, $src)
-            & $exe --plgx-create $src
-          } -ArgumentList $keepassExe, $plgxSrc
-
-          $completed = $job | Wait-Job -Timeout 60
-          if ($completed) {
-            Receive-Job $job | ForEach-Object { Write-Host $_ }
-            Remove-Job $job
-          } else {
-            Write-Warning "KeePass.exe --plgx-create did not complete within 60 seconds; falling back to manual PLGX creation."
-            Stop-Job $job
-            Remove-Job $job -Force
-          }
-
-          Start-Sleep -Seconds 2
-
-          Write-Host "Files in workspace root:"
-          Get-ChildItem $env:GITHUB_WORKSPACE -Filter "*.plgx" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
-
-          Write-Host "Files in plgx-src:"
-          Get-ChildItem $plgxSrc -Filter "*.plgx" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
-
-          $srcPlgx = Join-Path $env:GITHUB_WORKSPACE "plgx-src.plgx"
-          $plgxPath = "$env:GITHUB_WORKSPACE\KeePassAutoReload.plgx"
-          if (Test-Path $srcPlgx) {
-            Move-Item $srcPlgx $plgxPath -Force
-            Write-Host "PLGX package created: KeePassAutoReload.plgx"
-          } else {
-            Write-Warning "KeePass PLGX creation failed; skipping PLGX asset for this build."
-          }
-
       - name: Prepare release assets
         shell: powershell
         run: |
@@ -122,22 +76,8 @@ jobs:
             "$dist/KeePassAutoReload.Updater.exe" -Force
           Copy-Item "README.md" "$dist/README.md" -Force
 
-          $zipPaths = @("$dist/KeePassAutoReload.dll", "$dist/KeePassAutoReload.Updater.exe", "$dist/README.md")
-          $plgxPath = "$env:GITHUB_WORKSPACE\KeePassAutoReload.plgx"
-          if (Test-Path $plgxPath) {
-            $plgxSize = (Get-Item $plgxPath).Length
-            if ($plgxSize -gt 0) {
-              Copy-Item $plgxPath "$dist/KeePassAutoReload.plgx" -Force
-              $zipPaths += "$dist/KeePassAutoReload.plgx"
-              Write-Host "Including PLGX in release assets ($plgxSize bytes)."
-            } else {
-              Write-Warning "PLGX file is empty; excluding from release assets."
-            }
-          } else {
-            Write-Warning "PLGX file not found; excluding from release assets."
-          }
-
-          Compress-Archive -Path $zipPaths -DestinationPath "$dist/KeePassAutoReload.zip" -Force
+          Compress-Archive -Path "$dist/KeePassAutoReload.dll", "$dist/KeePassAutoReload.Updater.exe", "$dist/README.md" `
+            -DestinationPath "$dist/KeePassAutoReload.zip" -Force
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
