@@ -30,7 +30,7 @@ jobs:
 
       - name: Cache KeePass
         id: cache-keepass
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}\KeePass
           key: keepass-2.61.1-${{ runner.os }}
